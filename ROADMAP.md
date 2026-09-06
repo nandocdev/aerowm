@@ -75,15 +75,15 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 
 **Objetivo:** Levantar una sesión gráfica anidada dentro de una ventana X11/Wayland existente usando Smithay, procesando ventanas Wayland nativas mediante `xdg-shell`.
 
-* [En proceso] **Inicialización del Compositor con Smithay**
+* [x] **Inicialización del Compositor con Smithay**
   * [x] Crear el crate ejecutable principal `crates/aerowm`.
   * [x] Inicializar el bucle de eventos (`Calloop`) y estructurar el estado global.
-  * [ ] *Faltante:* Configurar el backend anidado con `winit` (`backend/winit.rs`) e integrar el motor de renderizado básico vía OpenGL ES / EGL.
+  * [x] Configurar el backend anidado con `winit` (`backend/winit.rs`) e inicializar `GlesRenderer`.
 
-* [ ] **Implementación del Protocolo `xdg-shell`**
-  * [ ] Implementar `XdgShellHandler` de Smithay para capturar solicitudes de nuevas superficies (ventanas).
-  * [ ] Vincular el ciclo de vida de la superficie Wayland con el `WindowId` del `aerowm-core`.
-  * [ ] Conectar la geometría calculada por los layouts de Rust al paso de renderizado de buffers de Smithay.
+* [x] **Implementación del Protocolo `xdg-shell`**
+  * [x] Implementar `XdgShellHandler` de Smithay para capturar solicitudes de nuevas superficies (ventanas).
+  * [x] Ligar el ciclo de vida de cada `ToplevelSurface` Wayland con nuestro generador de `WindowId` del Core.
+  * [ ] *Faltante:* Implementar un `DamageTracker` básico y pintar las ventanas en sus `Rect` correspondientes calculados por el motor de Layout.hay.
 
 * [ ] **Mapeo de Entradas y Keybindings**
   * [ ] Configurar la gestión de asientos (`SeatHandler`) para teclado y cursor.

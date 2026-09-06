@@ -1,6 +1,7 @@
 mod state;
 mod backend;
 mod ipc;
+mod handlers;
 
 use tracing::{info, warn};
 use calloop::EventLoop;
