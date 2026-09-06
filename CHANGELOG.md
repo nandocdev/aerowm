@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - 2026-09-06
 
 ### Added
+- **aerowm-ipc**: Defined IPC JSON-RPC message contracts using `serde`.
+- **aerowm-ctl**: Implemented `clap`-based CLI tool to interact with the Unix Socket.
 - **aerowm-lua**: Initialized Luau scripting engine using `mlua`.
 - **aerowm-lua**: Implemented `ScriptEngine` with API bindings, dynamic configuration loading, and hook emission system.
 - **aerowm-core**: Implemented layout algorithms (`MonadTall`, `Columns`, `Max`) with unit tests.

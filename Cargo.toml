@@ -1,6 +1,6 @@
 [workspace]
 members = [
     "crates/aerowm",
-    "crates/aerowm-core", "crates/aerowm-lua",
+    "crates/aerowm-core", "crates/aerowm-ctl", "crates/aerowm-ipc", "crates/aerowm-lua",
 ]
 resolver = "2"
