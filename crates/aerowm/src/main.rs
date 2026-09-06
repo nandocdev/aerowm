@@ -1,3 +1,43 @@
-fn main() {
-    println!("Hello, world!");
+mod state;
+mod backend;
+
+use tracing::{info, warn};
+use calloop::EventLoop;
+use wayland_server::Display;
+use aerowm_lua::ScriptEngine;
+use crate::state::AerowmState;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt::init();
+    info!("Starting AeroWM...");
+
+    let mut event_loop: EventLoop<AerowmState> = EventLoop::try_new()?;
+    let mut display: Display<AerowmState> = Display::new()?;
+    let display_handle = display.handle();
+
+    info!("Initializing Luau Engine...");
+    let engine = ScriptEngine::new().map_err(|e| format!("Failed to init ScriptEngine: {}", e))?;
+    
+    if let Err(err) = engine.load_config_string("aerowm.log('Luau loaded successfully!')") {
+        warn!("Failed to load config: {}", err);
+    }
+    let _ = engine.emit_hook("startup");
+
+    let mut state = AerowmState::new(&display_handle, engine);
+
+    // Initialize the backend
+    backend::winit::init_winit(&mut event_loop, &mut display, &mut state)?;
+
+    info!("AeroWM initialization complete. Entering event loop.");
+
+    // We run a small dummy loop to avoid infinite loop in testing for now
+    // In a real run, this would be an infinite `while state.is_running { ... }`
+    state.is_running = false; 
+
+    while state.is_running {
+        event_loop.dispatch(None, &mut state)?;
+        display.flush_clients()?;
+    }
+
+    Ok(())
 }

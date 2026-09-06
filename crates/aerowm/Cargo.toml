@@ -5,4 +5,11 @@ edition = "2024"
 description = "AeroWM: High-performance Wayland dynamic tiling window manager"
 
 [dependencies]
-aerowm-core = { path = "../aerowm-core" }
+aerowm-core = { version = "0.1.0", path = "../aerowm-core" }
+aerowm-ipc = { version = "0.1.0", path = "../aerowm-ipc" }
+aerowm-lua = { version = "0.1.0", path = "../aerowm-lua" }
+calloop = "0.14.4"
+smithay = "0.7.0"
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+wayland-server = "0.31.14"
