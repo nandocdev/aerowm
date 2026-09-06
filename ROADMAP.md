@@ -13,9 +13,9 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] Configurar linters y formateadores (`rustfmt`, `clippy` con flags estrictas de seguridad).
   * [x] Crear el sub-crate `crates/aerowm-core`.
 
-* [En proceso] **Modelado de Primitivas Geométricas**
+* [x] **Modelado de Primitivas Geométricas**
   * [x] Implementar structs base: `Point`, `Size`, y `Rect` con operaciones de intersección, paddings y márgenes.
-  * [ ] *Faltante:* Crear el identificador semántico `WindowId` basado en enteros únicos autoincrementales.
+  * [x] Crear el identificador semántico `WindowId` basado en enteros únicos autoincrementales.
 
 * [x] **Diseño del Trait `Layout`**
   * [x] Definir la interfaz base `pub trait Layout`: firma que acepta un rectángulo contenedor y un slice de identificadores, retornando un mapa de geometrías.
@@ -23,10 +23,10 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] Implementar el layout `MonadTall` (columna principal con pila secundaria parametrizable por ratio).
   * [x] Implementar el layout `Columns` (distribución por columnas dinámicas con ancho relativo).
 
-* [En proceso] **Estructura de `Workspace` y Foco**
-  * [ ] *Faltante:* Implementar el contenedor de estado `Workspace` (gestión de lista ordenada de ventanas, ventana enfocada, pila de historial).
-  * [ ] *Faltante:* Implementar operaciones cardinales de foco: `focus_next()`, `focus_prev()`, `swap_master()`.
-  * [ ] *Faltante:* Escribir suite de pruebas unitarias cubriendo cálculos de layout y transiciones de foco.
+* [x] **Estructura de `Workspace` y Foco**
+  * [x] Implementar el contenedor de estado `Workspace` (gestión de lista ordenada de ventanas, ventana enfocada, pila de historial).
+  * [x] Implementar operaciones cardinales de foco: `focus_next()`, `focus_prev()`, `swap_master()`.
+  * [x] Escribir suite de pruebas unitarias cubriendo cálculos de layout y transiciones de foco.
 
 ---
 

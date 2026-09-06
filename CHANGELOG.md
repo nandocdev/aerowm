@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - 2026-09-06
 
 ### Added
+- **aerowm-core**: Completed Sprint 1 logic: introduced `WindowId` and `Workspace` container with focus transitions (`focus_next`, `swap_master`, etc.) and unit tests.
 - **aerowm**: Base Wayland compositor entry point utilizing `smithay`, `calloop`, and `tracing`.
 - **aerowm-ipc**: Defined IPC JSON-RPC message contracts using `serde`.
 - **aerowm-ctl**: Implemented `clap`-based CLI tool to interact with the Unix Socket.
