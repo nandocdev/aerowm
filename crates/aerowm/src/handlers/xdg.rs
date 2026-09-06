@@ -3,6 +3,8 @@ use smithay::wayland::shell::xdg::{
 };
 use smithay::reexports::wayland_server::protocol::wl_seat::WlSeat;
 use smithay::delegate_xdg_shell;
+use smithay::desktop::Window;
+use smithay::desktop::PopupKind;
 
 use crate::state::AerowmState;
 
@@ -17,11 +19,21 @@ impl XdgShellHandler for AerowmState {
         // Register in the domain layout
         self.active_workspace.add_window(id);
         self.surfaces.insert(id, surface.clone());
-
-        // We use IpcEvent WindowOpened. WindowId can be serialized to u64 or string.
-        // Wait, WindowId doesn't have an into() u64 directly in aerowm_core unless we implemented it.
-        // I will just broadcast focus changed for now.
-        // self.broadcast_event(aerowm_ipc::IpcEvent::FocusChanged(Some(1)));
+        
+        // Create a Window from the toplevel surface
+        let window = Window::new_wayland_window(surface.clone());
+        
+        // Set window as activated
+        window.set_activated(true);
+        
+        // Add to space at (0, 0) - layout will be applied later
+        self.space.map_element(window, (0, 0), true);
+        
+        // Apply layout to position all windows
+        self.apply_layout();
+        
+        // Broadcast window opened event
+        self.broadcast_event(aerowm_ipc::IpcEvent::WindowOpened(id.as_usize()));
 
         surface.with_pending_state(|state| {
             state.states.set(smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State::Activated);
@@ -29,12 +41,14 @@ impl XdgShellHandler for AerowmState {
         surface.send_configure();
     }
 
-    fn new_popup(&mut self, _surface: PopupSurface, _positioner: PositionerState) {
+    fn new_popup(&mut self, surface: PopupSurface, _positioner: PositionerState) {
         // Handle popups (tooltips, context menus)
+        let popup_kind: PopupKind = surface.into();
+        self.popup_manager.track_popup(popup_kind).ok();
     }
 
     fn grab(&mut self, _surface: PopupSurface, _seat: WlSeat, _serial: smithay::utils::Serial) {
-        // Handle grab for popups
+        // Handle grab for popups - simplified for now
     }
 
     fn reposition_request(
@@ -43,7 +57,7 @@ impl XdgShellHandler for AerowmState {
         _positioner: PositionerState,
         _token: u32,
     ) {
-        // Handle popup reposition
+        // Handle popup reposition - simplified for now
     }
 }
 

@@ -1,13 +1,14 @@
 use crate::id::WindowId;
 use crate::geometry::Rect;
 use crate::layout::Layout;
+use crate::layouts::MonadTall;
 
 /// Container for managing windows and focus in a virtual workspace.
-#[derive(Debug)]
 pub struct Workspace {
     pub name: String,
     windows: Vec<WindowId>,
     focused_index: Option<usize>,
+    layout: Box<dyn Layout>,
 }
 
 impl Workspace {
@@ -16,7 +17,13 @@ impl Workspace {
             name: name.into(),
             windows: Vec::new(),
             focused_index: None,
+            layout: Box::new(MonadTall::default()),
         }
+    }
+
+    /// Returns a reference to the current layout.
+    pub fn get_current_layout(&self) -> &dyn Layout {
+        self.layout.as_ref()
     }
 
     /// Adds a window to the workspace and focuses it.

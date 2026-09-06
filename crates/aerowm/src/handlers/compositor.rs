@@ -7,6 +7,7 @@ use smithay::reexports::wayland_server::Client;
 use smithay::reexports::wayland_server::backend::{ClientData, ClientId, DisconnectReason};
 use smithay::{delegate_compositor, delegate_shm};
 
+
 use crate::state::AerowmState;
 
 pub struct ClientState {
@@ -42,7 +43,10 @@ impl CompositorHandler for AerowmState {
     }
     
     fn commit(&mut self, _surface: &WlSurface) {
-        // Surface committed: here we would update damage, layout, etc.
+        // Surface committed: call on_commit on all windows to update damage tracking
+        for window in self.space.elements() {
+            window.on_commit();
+        }
     }
 }
 

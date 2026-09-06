@@ -83,7 +83,7 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 * [x] **Implementación del Protocolo `xdg-shell`**
   * [x] Implementar `XdgShellHandler` de Smithay para capturar solicitudes de nuevas superficies (ventanas).
   * [x] Ligar el ciclo de vida de cada `ToplevelSurface` Wayland con nuestro generador de `WindowId` del Core.
-  * [ ] *Faltante:* Implementar un `DamageTracker` básico y pintar las ventanas en sus `Rect` correspondientes calculados por el motor de Layout.hay.
+  * [x] Implementar un `DamageTracker` básico y pintar las ventanas en sus `Rect` correspondientes calculados por el motor de Layout.
 
 * [ ] **Mapeo de Entradas y Keybindings**
   * [ ] Configurar la gestión de asientos (`SeatHandler`) para teclado y cursor.
