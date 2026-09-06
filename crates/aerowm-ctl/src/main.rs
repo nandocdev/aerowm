@@ -27,6 +27,8 @@ enum Commands {
     Kill,
     /// Exit the compositor
     Exit,
+    /// Subscribe to live events (Pub/Sub)
+    Subscribe,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,6 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Reload => IpcCommand::ReloadConfig,
         Commands::Kill => IpcCommand::KillWindow,
         Commands::Exit => IpcCommand::Exit,
+        Commands::Subscribe => IpcCommand::Subscribe,
         Commands::Workspace { next, prev, switch } => {
             let action = if next {
                 WorkspaceAction::Next
@@ -68,10 +71,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Send payload
     stream.write_all(payload.as_bytes())?;
-    // Sending a newline just in case the server reads line by line
     stream.write_all(b"\n")?;
 
-    // Read response
+    if matches!(ipc_command, IpcCommand::Subscribe) {
+        use std::io::BufRead;
+        let reader = std::io::BufReader::new(stream);
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                println!("{}", line); // Print live events JSON
+            } else {
+                break;
+            }
+        }
+        return Ok(());
+    }
+
+    // Read single response for other commands
     let mut response_buf = String::new();
     stream.read_to_string(&mut response_buf)?;
 

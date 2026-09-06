@@ -10,6 +10,7 @@ dependencies = [
  "aerowm-ipc",
  "aerowm-lua",
  "calloop 0.14.4",
+ "serde_json",
  "smithay",
  "tracing",
  "tracing-subscriber",

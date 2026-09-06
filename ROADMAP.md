@@ -59,15 +59,15 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] Crear el sub-crate `crates/aerowm-ipc`.
   * [x] Definir el catálogo de mensajes serializables (JSON-RPC) mediante `serde`: comandos de acción y eventos de notificación.
 
-* [En proceso] **Servidor Asíncrono del Compositor**
-  * [ ] *Faltante:* Implementar el bucle de escucha de sockets Unix usando `calloop` (reemplazando tokio para ahorrar memoria) en `aerowm/src/ipc.rs`.
-  * [ ] *Faltante:* Integrar el mecanismo de Pub/Sub: permitir que clientes externos (barras, paneles) se suscriban a eventos de cambio de foco y tags.
-  * [ ] *Faltante:* Crear un buffer de canal (`mpsc`) thread-safe para transferir comandos IPC hacia el hilo principal del compositor.
+* [x] **Servidor Asíncrono del Compositor**
+  * [x] Implementar el bucle de escucha de sockets Unix usando `calloop` (reemplazando tokio para ahorrar memoria) en `aerowm/src/ipc.rs`.
+  * [x] Integrar el mecanismo de Pub/Sub: permitir que clientes externos (barras, paneles) se suscriban a eventos de cambio de foco y tags.
+  * [x] Crear un buffer de canal (`mpsc`) thread-safe para transferir comandos IPC hacia el hilo principal del compositor (manejado nativamente por calloop y el estado).
 
-* [En proceso] **Implementación de `aerowm-ctl`**
+* [x] **Implementación de `aerowm-ctl`**
   * [x] Crear el binario en `bin/aerowm-ctl` (movido a `crates/aerowm-ctl`).
   * [x] Implementar comandos CLI básicos con `clap`: `workspace`, `kill`, `reload`.
-  * [ ] *Faltante:* Implementar comando `aerowm-ctl subscribe` para imprimir eventos en streaming continuo (compatible con scripts de `waybar` o `polybar`).
+  * [x] Implementar comando `aerowm-ctl subscribe` para imprimir eventos en streaming continuo (compatible con scripts de `waybar` o `polybar`).
 
 ---
 

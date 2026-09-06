@@ -1,5 +1,6 @@
 mod state;
 mod backend;
+mod ipc;
 
 use tracing::{info, warn};
 use calloop::EventLoop;
@@ -24,6 +25,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = engine.emit_hook("startup");
 
     let mut state = AerowmState::new(&display_handle, engine);
+
+    // Initialize the IPC Unix Socket directly into calloop
+    ipc::init_ipc_socket(event_loop.handle())?;
 
     // Initialize the backend
     backend::winit::init_winit(&mut event_loop, &mut display, &mut state)?;
