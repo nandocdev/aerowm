@@ -1,0 +1,8 @@
+[package]
+name = "aerowm"
+version = "0.1.0"
+edition = "2024"
+description = "AeroWM: High-performance Wayland dynamic tiling window manager"
+
+[dependencies]
+aerowm-core = { path = "../aerowm-core" }
