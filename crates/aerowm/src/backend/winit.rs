@@ -1,23 +1,40 @@
-use calloop::EventLoop;
+use calloop::{timer::{Timer, TimeoutAction}, EventLoop};
+use smithay::backend::winit::{self, WinitEvent};
+use smithay::backend::renderer::gles::GlesRenderer;
 use wayland_server::Display;
 use crate::state::AerowmState;
 use tracing::info;
+use std::time::Duration;
 
 pub fn init_winit(
-    _event_loop: &mut EventLoop<AerowmState>,
+    event_loop: &mut EventLoop<AerowmState>,
     _display: &mut Display<AerowmState>,
     _state: &mut AerowmState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("Initializing Winit Backend (Nested Wayland)");
     
-    // In a full Smithay implementation, here we would:
-    // 1. Create a `winit::EventLoop`
-    // 2. Initialize a `winit` backend from `smithay::backend::winit`
-    // 3. Register the winit event loop into `calloop` via `Generic` or `Timer` source
-    // 4. Setup rendering (Gles2 or DamageTracker)
-    
-    // For now, this is a conceptual shell to guide the architecture
-    // following the principle of simplicity. We will expand this iteratively.
+    // Initialize the Smithay winit backend specifying the GlesRenderer for hardware acceleration
+    let (mut _backend, mut winit) = winit::init::<GlesRenderer>().map_err(|e| e.to_string())?;
+
+    // Drive the winit event loop at ~60fps using Calloop's timer source
+    let timer = Timer::immediate();
+    event_loop.handle().insert_source(timer, move |_, _, state| {
+        winit.dispatch_new_events(|event| {
+            match event {
+                WinitEvent::Resized { size, .. } => {
+                    info!("Window resized to {:?}", size);
+                }
+                WinitEvent::CloseRequested => {
+                    info!("Window closed. Exiting.");
+                    state.is_running = false;
+                }
+                _ => {}
+            }
+        });
+
+        // Continue running the timer every 16ms (~60 FPS)
+        TimeoutAction::ToDuration(Duration::from_millis(16))
+    }).map_err(|e| format!("Timer error: {}", e))?;
 
     Ok(())
 }

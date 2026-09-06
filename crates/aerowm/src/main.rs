@@ -34,10 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("AeroWM initialization complete. Entering event loop.");
 
-    // We run a small dummy loop to avoid infinite loop in testing for now
-    // In a real run, this would be an infinite `while state.is_running { ... }`
-    state.is_running = false; 
-
+    // The main loop
     while state.is_running {
         event_loop.dispatch(None, &mut state)?;
         display.flush_clients()?;
