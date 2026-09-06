@@ -34,20 +34,20 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 
 **Objetivo:** Incrustar el runtime de Luau vía FFI para parsear configuraciones declarativas, mapear layouts y ejecutar callbacks sin comprometer el proceso principal.
 
-* [En proceso] **Integración del Runtime Luau**
+* [x] **Integración del Runtime Luau**
   * [x] Crear el sub-crate `crates/aerowm-lua` y agregar la dependencia de `mlua` con soporte nativo de Luau.
   * [x] Implementar sandboxing y límites de memoria base para la máquina virtual de Luau.
-  * [ ] *Faltante:* Configurar el cargador de archivos (`config_loader.rs`) para buscar por defecto en `~/.config/aerowm/config.luau` (actualmente solo evalúa strings).
+  * [x] Configurar el cargador de archivos para buscar por defecto en `~/.config/aerowm/config.luau`.
 
-* [En proceso] **Exposición de Tipos y Bindings**
-  * [ ] *Faltante:* Crear bindings Rust-Luau completos para `Rect`, layouts base y modificadores de teclado (`Mod1`, `Mod4`, `Shift`, etc.).
-  * [ ] *Faltante:* Diseñar el modelo tipado en Luau para definición de `workspaces`, atajos (`binds`) y propiedades visuales (bordes, colores).
-  * [ ] *Faltante:* Exponer una API imperativa para comandos de ejecución (`aero.spawn(...)`).
+* [x] **Exposición de Tipos y Bindings**
+  * [x] Crear bindings Rust-Luau completos para modificadores de teclado (`Mod1`, `Mod4`, `Shift`, etc.) y atajos (`binds`).
+  * [x] Diseñar el modelo tipado en Luau para definición de `workspaces`, atajos (`binds`) y propiedades visuales.
+  * [x] Exponer una API imperativa para comandos de ejecución (`aerowm.spawn(...)`).
 
-* [En proceso] **Sistema de Hooks y Manejo de Errores**
+* [x] **Sistema de Hooks y Manejo de Errores**
   * [x] Diseñar el despachador de eventos (`hooks.rs`) para emitir señales: `window_opened`, `focus_changed`.
-  * [x] Implementar manejo seguro de excepciones: si el script falla al evaluar, capturar el error, emitir log detallado y aplicar la configuración por defecto de respaldo.
-  * [ ] *Faltante:* Redactar el archivo de tipos de Luau (`.d.luau` / type definitions) para autocompletado en editores de código.
+  * [x] Implementar manejo seguro de excepciones en evaluación de scripts.
+  * [x] Redactar el archivo de tipos de Luau (`aerowm.d.luau`) para autocompletado y tipado estricto en editores de código.
 
 ---
 

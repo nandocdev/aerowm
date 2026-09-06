@@ -1,5 +1,6 @@
 use mlua::{Function, Lua, Result, Table};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 /// The central Lua(u) scripting engine for AeroWM.
 /// It wraps the Luau VM, injects the secure API bindings, 
@@ -11,7 +12,7 @@ pub struct ScriptEngine {
 impl ScriptEngine {
     /// Initializes a new Luau sandbox environment with the `aerowm` API.
     pub fn new() -> Result<Self> {
-        // Creates a new Luau state (guaranteed by the `luau` feature in Cargo.toml)
+        // Creates a new Luau state
         let lua = Lua::new();
         
         // Expose a global table for the AeroWM API
@@ -23,6 +24,29 @@ impl ScriptEngine {
             Ok(())
         })?;
         aerowm_table.set("log", log_fn)?;
+
+        // Command execution binding: aero.spawn("kitty")
+        let spawn_fn = lua.create_function(|_, cmd: String| {
+            Command::new("sh")
+                .arg("-c")
+                .arg(&cmd)
+                .spawn()
+                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to spawn {}: {}", cmd, e)))?;
+            Ok(())
+        })?;
+        aerowm_table.set("spawn", spawn_fn)?;
+
+        // Key Modifiers table
+        let mods_table = lua.create_table()?;
+        mods_table.set("Mod1", "Alt")?;
+        mods_table.set("Mod4", "Super")?;
+        mods_table.set("Shift", "Shift")?;
+        mods_table.set("Control", "Control")?;
+        aerowm_table.set("mods", mods_table)?;
+
+        // Table for user-defined keybindings
+        let binds_table = lua.create_table()?;
+        aerowm_table.set("binds", binds_table)?;
         
         // Table dedicated to user-defined lifecycle hooks
         let hooks_table = lua.create_table()?;
@@ -34,9 +58,26 @@ impl ScriptEngine {
         Ok(Self { lua })
     }
 
+    /// Resolves the default configuration path (~/.config/aerowm/config.luau)
+    pub fn default_config_path() -> Option<PathBuf> {
+        dirs::config_dir().map(|mut p| {
+            p.push("aerowm");
+            p.push("config.luau");
+            p
+        })
+    }
+
+    /// Safely evaluates the default configuration file if it exists.
+    pub fn load_default_config(&self) -> Result<()> {
+        if let Some(path) = Self::default_config_path() {
+            if path.exists() {
+                return self.load_config_file(path);
+            }
+        }
+        Ok(())
+    }
+
     /// Safely evaluates a configuration file from disk.
-    /// Any syntax or runtime error is caught and returned as an `mlua::Result`,
-    /// preventing the main compositor process from panicking.
     pub fn load_config_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let source = std::fs::read_to_string(path)
             .map_err(|e| mlua::Error::RuntimeError(format!("Failed to read config file: {}", e)))?;
@@ -51,8 +92,6 @@ impl ScriptEngine {
     }
 
     /// Emits a lifecycle event (hook) to the Luau environment.
-    /// E.g. "window_opened", "focus_changed".
-    /// If the user script defined a function for this hook, it is executed safely.
     pub fn emit_hook(&self, hook_name: &str) -> Result<()> {
         let globals = self.lua.globals();
         let aerowm: Table = globals.get("aerowm")?;
@@ -88,21 +127,26 @@ mod tests {
         "#;
         
         engine.load_config_string(config).unwrap();
-        // Emitting the hook should succeed
         assert!(engine.emit_hook("window_opened").is_ok());
-        
-        // Emitting an unregistered hook should also succeed silently (do nothing)
         assert!(engine.emit_hook("unregistered_hook").is_ok());
+    }
+
+    #[test]
+    fn test_bindings_and_spawn() {
+        let engine = ScriptEngine::new().unwrap();
+        let config = r#"
+            aerowm.binds[aerowm.mods.Mod4 .. "+Return"] = function()
+                aerowm.spawn("echo 'test'")
+            end
+        "#;
+        assert!(engine.load_config_string(config).is_ok());
     }
 
     #[test]
     fn test_syntax_error_isolation() {
         let engine = ScriptEngine::new().unwrap();
-        // Malformed Luau syntax
         let bad_config = "aerowm.log('Missing closing parenthesis'";
-        
         let result = engine.load_config_string(bad_config);
-        // Ensure the error is caught and doesn't panic
         assert!(result.is_err());
     }
 }
