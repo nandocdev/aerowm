@@ -8,30 +8,25 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 
 **Objetivo:** Obtener un crate de Rust puro, sin dependencias gráficas, capaz de calcular distribuciones espaciales de ventanas con cobertura completa de pruebas unitarias.
 
-* [ ] **Configuración del Workspace**
-* [ ] Inicializar repositorio Git y configurar el `Cargo.toml` raíz con la estructura de workspaces definida.
-* [ ] Configurar linters y formateadores (`rustfmt`, `clippy` con flags estrictas de seguridad).
-* [ ] Crear el sub-crate `crates/aerowm-core`.
+* [x] **Configuración del Workspace**
+  * [x] Inicializar repositorio Git y configurar el `Cargo.toml` raíz con la estructura de workspaces definida.
+  * [x] Configurar linters y formateadores (`rustfmt`, `clippy` con flags estrictas de seguridad).
+  * [x] Crear el sub-crate `crates/aerowm-core`.
 
+* [En proceso] **Modelado de Primitivas Geométricas**
+  * [x] Implementar structs base: `Point`, `Size`, y `Rect` con operaciones de intersección, paddings y márgenes.
+  * [ ] *Faltante:* Crear el identificador semántico `WindowId` basado en enteros únicos autoincrementales.
 
-* [ ] **Modelado de Primitivas Geométricas**
-* [ ] Implementar structs base: `Point`, `Size`, y `Rect` con operaciones de intersección, paddings y márgenes.
-* [ ] Crear el identificador semántico `WindowId` basado en enteros únicos autoincrementales.
+* [x] **Diseño del Trait `Layout`**
+  * [x] Definir la interfaz base `pub trait Layout`: firma que acepta un rectángulo contenedor y un slice de identificadores, retornando un mapa de geometrías.
+  * [x] Implementar el layout `Full` (pantalla completa o maximizado).
+  * [x] Implementar el layout `MonadTall` (columna principal con pila secundaria parametrizable por ratio).
+  * [x] Implementar el layout `Columns` (distribución por columnas dinámicas con ancho relativo).
 
-
-* [ ] **Diseño del Trait `Layout**`
-* [ ] Definir la interfaz base `pub trait Layout`: firma que acepta un rectángulo contenedor y un slice de identificadores, retornando un mapa de geometrías.
-* [ ] Implementar el layout `Full` (pantalla completa o maximizado).
-* [ ] Implementar el layout `MonadTall` (columna principal con pila secundaria parametrizable por ratio).
-* [ ] Implementar el layout `Columns` (distribución por columnas dinámicas con ancho relativo).
-
-
-* [ ] **Estructura de `Workspace` y Foco**
-* [ ] Implementar el contenedor de estado `Workspace` (gestión de lista ordenada de ventanas, ventana enfocada, pila de historial).
-* [ ] Implementar operaciones cardinales de foco: `focus_next()`, `focus_prev()`, `swap_master()`.
-* [ ] Escribir suite de pruebas unitarias cubriendo cálculos de layout y transiciones de foco.
-
-
+* [En proceso] **Estructura de `Workspace` y Foco**
+  * [ ] *Faltante:* Implementar el contenedor de estado `Workspace` (gestión de lista ordenada de ventanas, ventana enfocada, pila de historial).
+  * [ ] *Faltante:* Implementar operaciones cardinales de foco: `focus_next()`, `focus_prev()`, `swap_master()`.
+  * [ ] *Faltante:* Escribir suite de pruebas unitarias cubriendo cálculos de layout y transiciones de foco.
 
 ---
 
@@ -39,24 +34,20 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 
 **Objetivo:** Incrustar el runtime de Luau vía FFI para parsear configuraciones declarativas, mapear layouts y ejecutar callbacks sin comprometer el proceso principal.
 
-* [ ] **Integración del Runtime Luau**
-* [ ] Crear el sub-crate `crates/aerowm-lua` y agregar la dependencia de `mlua` con soporte nativo de Luau.
-* [ ] Configurar el cargador de archivos (`config_loader.rs`) para buscar por defecto en `~/.config/aerowm/config.luau`.
-* [ ] Implementar sandboxing y límites de memoria base para la máquina virtual de Luau.
+* [En proceso] **Integración del Runtime Luau**
+  * [x] Crear el sub-crate `crates/aerowm-lua` y agregar la dependencia de `mlua` con soporte nativo de Luau.
+  * [x] Implementar sandboxing y límites de memoria base para la máquina virtual de Luau.
+  * [ ] *Faltante:* Configurar el cargador de archivos (`config_loader.rs`) para buscar por defecto en `~/.config/aerowm/config.luau` (actualmente solo evalúa strings).
 
+* [En proceso] **Exposición de Tipos y Bindings**
+  * [ ] *Faltante:* Crear bindings Rust-Luau completos para `Rect`, layouts base y modificadores de teclado (`Mod1`, `Mod4`, `Shift`, etc.).
+  * [ ] *Faltante:* Diseñar el modelo tipado en Luau para definición de `workspaces`, atajos (`binds`) y propiedades visuales (bordes, colores).
+  * [ ] *Faltante:* Exponer una API imperativa para comandos de ejecución (`aero.spawn(...)`).
 
-* [ ] **Exposición de Tipos y Bindings**
-* [ ] Crear bindings Rust-Luau para `Rect`, layouts base y modificadores de teclado (`Mod1`, `Mod4`, `Shift`, etc.).
-* [ ] Diseñar el modelo tipado en Luau para definición de `workspaces`, atajos (`binds`) y propiedades visuales (bordes, colores).
-* [ ] Exponer una API imperativa para comandos de ejecución (`aero.spawn(...)`).
-
-
-* [ ] **Sistema de Hooks y Manejo de Errores**
-* [ ] Diseñar el despachador de eventos (`hooks.rs`) para emitir señales: `window_opened`, `focus_changed`.
-* [ ] Implementar manejo seguro de excepciones: si el script falla al evaluar, capturar el error, emitir log detallado y aplicar la configuración por defecto de respaldo.
-* [ ] Redactar el archivo de tipos de Luau (`.d.luau` / type definitions) para autocompletado en editores de código.
-
-
+* [En proceso] **Sistema de Hooks y Manejo de Errores**
+  * [x] Diseñar el despachador de eventos (`hooks.rs`) para emitir señales: `window_opened`, `focus_changed`.
+  * [x] Implementar manejo seguro de excepciones: si el script falla al evaluar, capturar el error, emitir log detallado y aplicar la configuración por defecto de respaldo.
+  * [ ] *Faltante:* Redactar el archivo de tipos de Luau (`.d.luau` / type definitions) para autocompletado en editores de código.
 
 ---
 
@@ -64,23 +55,19 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 
 **Objetivo:** Establecer un canal asíncrono de comunicación local por Unix Socket para consultar estado, recibir órdenes en tiempo real y alimentar widgets/barras.
 
-* [ ] **Definición del Protocolo IPC**
-* [ ] Crear el sub-crate `crates/aerowm-ipc`.
-* [ ] Definir el catálogo de mensajes serializables (JSON-RPC) mediante `serde`: comandos de acción y eventos de notificación.
+* [x] **Definición del Protocolo IPC**
+  * [x] Crear el sub-crate `crates/aerowm-ipc`.
+  * [x] Definir el catálogo de mensajes serializables (JSON-RPC) mediante `serde`: comandos de acción y eventos de notificación.
 
+* [En proceso] **Servidor Asíncrono del Compositor**
+  * [ ] *Faltante:* Implementar el bucle de escucha de sockets Unix usando `calloop` (reemplazando tokio para ahorrar memoria) en `aerowm/src/ipc.rs`.
+  * [ ] *Faltante:* Integrar el mecanismo de Pub/Sub: permitir que clientes externos (barras, paneles) se suscriban a eventos de cambio de foco y tags.
+  * [ ] *Faltante:* Crear un buffer de canal (`mpsc`) thread-safe para transferir comandos IPC hacia el hilo principal del compositor.
 
-* [ ] **Servidor Asíncrono del Compositor**
-* [ ] Implementar el bucle de escucha de sockets Unix usando `tokio` en `aerowm-ipc/src/server.rs`.
-* [ ] Integrar el mecanismo de Pub/Sub: permitir que clientes externos (barras, paneles) se suscriban a eventos de cambio de foco y tags.
-* [ ] Crear un buffer de canal (`mpsc`) thread-safe para transferir comandos IPC hacia el hilo principal del compositor.
-
-
-* [ ] **Implementación de `aerowm-ctl**`
-* [ ] Crear el binario en `bin/aerowm-ctl`.
-* [ ] Implementar comandos CLI básicos con `clap`: `focus`, `kill`, `workspace-switch`, `reload-config`.
-* [ ] Implementar comando `aerowm-ctl subscribe` para imprimir eventos en streaming continuo (compatible con scripts de `waybar` o `polybar`).
-
-
+* [En proceso] **Implementación de `aerowm-ctl`**
+  * [x] Crear el binario en `bin/aerowm-ctl` (movido a `crates/aerowm-ctl`).
+  * [x] Implementar comandos CLI básicos con `clap`: `workspace`, `kill`, `reload`.
+  * [ ] *Faltante:* Implementar comando `aerowm-ctl subscribe` para imprimir eventos en streaming continuo (compatible con scripts de `waybar` o `polybar`).
 
 ---
 
@@ -88,24 +75,20 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 
 **Objetivo:** Levantar una sesión gráfica anidada dentro de una ventana X11/Wayland existente usando Smithay, procesando ventanas Wayland nativas mediante `xdg-shell`.
 
-* [ ] **Inicialización del Compositor con Smithay**
-* [ ] Crear el crate ejecutable principal `crates/aerowm`.
-* [ ] Configurar el backend anidado con `winit` (`backend/winit.rs`) para acelerar el ciclo de desarrollo sin salir de la sesión actual.
-* [ ] Inicializar el bucle de eventos (`Calloop`) e integrar el motor de renderizado básico vía OpenGL ES / EGL.
+* [En proceso] **Inicialización del Compositor con Smithay**
+  * [x] Crear el crate ejecutable principal `crates/aerowm`.
+  * [x] Inicializar el bucle de eventos (`Calloop`) y estructurar el estado global.
+  * [ ] *Faltante:* Configurar el backend anidado con `winit` (`backend/winit.rs`) e integrar el motor de renderizado básico vía OpenGL ES / EGL.
 
-
-* [ ] **Implementación del Protocolo `xdg-shell**`
-* [ ] Implementar `XdgShellHandler` de Smithay para capturar solicitudes de nuevas superficies (ventanas).
-* [ ] Vincular el ciclo de vida de la superficie Wayland con el `WindowId` del `aerowm-core`.
-* [ ] Conectar la geometría calculada por los layouts de Rust al paso de renderizado de buffers de Smithay.
-
+* [ ] **Implementación del Protocolo `xdg-shell`**
+  * [ ] Implementar `XdgShellHandler` de Smithay para capturar solicitudes de nuevas superficies (ventanas).
+  * [ ] Vincular el ciclo de vida de la superficie Wayland con el `WindowId` del `aerowm-core`.
+  * [ ] Conectar la geometría calculada por los layouts de Rust al paso de renderizado de buffers de Smithay.
 
 * [ ] **Mapeo de Entradas y Keybindings**
-* [ ] Configurar la gestión de asientos (`SeatHandler`) para teclado y cursor.
-* [ ] Implementar el despachador de atajos de teclado globales configurados previamente desde Luau.
-* [ ] Implementar el cierre de ventanas (`kill_active`) y el ciclo entre espacios de trabajo mediante teclado.
-
-
+  * [ ] Configurar la gestión de asientos (`SeatHandler`) para teclado y cursor.
+  * [ ] Implementar el despachador de atajos de teclado globales configurados previamente desde Luau.
+  * [ ] Implementar el cierre de ventanas (`kill_active`) y el ciclo entre espacios de trabajo mediante teclado.
 
 ---
 
@@ -114,21 +97,17 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 **Objetivo:** Transformar el compositor en un entorno autónomo ejecutable directamente desde la consola (TTY) con soporte de monitores reales y paneles.
 
 * [ ] **Backend de Hardware Directo (`udev` / KMS)**
-* [ ] Implementar el backend nativo `backend/udev.rs` usando las APIs de DRM, GBM y Libinput de Smithay.
-* [ ] Gestionar la detección dinámica de monitores (`OutputHandler`), resoluciones nativas y tasas de refresco (V-Sync).
-* [ ] Implementar el paso atómico de cambio de modo de pantalla (*Atomic Mode Setting*).
-
+  * [ ] Implementar el backend nativo `backend/udev.rs` usando las APIs de DRM, GBM y Libinput de Smithay.
+  * [ ] Gestionar la detección dinámica de monitores (`OutputHandler`), resoluciones nativas y tasas de refresco (V-Sync).
+  * [ ] Implementar el paso atómico de cambio de modo de pantalla (*Atomic Mode Setting*).
 
 * [ ] **Soporte para Paneles y Barras (`wlr-layer-shell`)**
-* [ ] Implementar el protocolo `wlr-layer-shell` para permitir la integración de aplicaciones como `waybar`, fondos de pantalla (`wbg`, `swaybg`) y lanzadores de aplicaciones (`rofi-wayland`).
-* [ ] Configurar la deducción del área de trabajo: restar el tamaño ocupado por los paneles antes de calcular el tiling de las ventanas.
-
+  * [ ] Implementar el protocolo `wlr-layer-shell` para permitir la integración de aplicaciones como `waybar`, fondos de pantalla (`wbg`, `swaybg`) y lanzadores de aplicaciones (`rofi-wayland`).
+  * [ ] Configurar la deducción del área de trabajo: restar el tamaño ocupado por los paneles antes de calcular el tiling de las ventanas.
 
 * [ ] **Puntero y Foco por Ratón**
-* [ ] Implementar manipulación de ventanas con cursor: arrastre y cambio de tamaño interactivo para ventanas flotantes.
-* [ ] Integrar lógica de foco: foco al pasar el puntero (*focus-follows-mouse*) con activación de ventana al hacer clic.
-
-
+  * [ ] Implementar manipulación de ventanas con cursor: arrastre y cambio de tamaño interactivo para ventanas flotantes.
+  * [ ] Integrar lógica de foco: foco al pasar el puntero (*focus-follows-mouse*) con activación de ventana al hacer clic.
 
 ---
 
@@ -137,21 +116,18 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 **Objetivo:** Maximizar la fluidez visual, garantizar hot reload atómico, añadir compatibilidad legacy y empaquetar para distribuciones Linux.
 
 * [ ] **Soporte para Aplicaciones Legacy (`XWayland`)**
-* [ ] Inicializar el socket y contexto de XWayland dentro del ciclo de vida del compositor.
-* [ ] Integrar ventanas X11 convencionales dentro del árbol de distribución de Smithay y del core de layouts.
-
+  * [ ] Inicializar el socket y contexto de XWayland dentro del ciclo de vida del compositor.
+  * [ ] Integrar ventanas X11 convencionales dentro del árbol de distribución de Smithay y del core de layouts.
 
 * [ ] **Hot Reload Atómico de Configuración**
-* [ ] Implementar comando de recarga en caliente (`reload`): reevaluar `config.luau` en una nueva VM aislada sin destruir superficies activas ni reiniciar clientes Wayland.
-* [ ] Intercambio atómico de punteros de configuración en memoria con tiempo de ejecución $< 15 \text{ ms}$.
-
+  * [ ] Implementar comando de recarga en caliente (`reload`): reevaluar `config.luau` en una nueva VM aislada sin destruir superficies activas ni reiniciar clientes Wayland.
+  * [ ] Intercambio atómico de punteros de configuración en memoria con tiempo de ejecución $< 15 \text{ ms}$.
 
 * [ ] **Optimización de Memoria y Renderizado**
-* [ ] Auditar asignaciones de memoria en reposo con herramientas de perfilado (`heaptrack` / `valgrind`) para cumplir el objetivo $\le 20 \text{ MB}$.
-* [ ] Aplicar renderizado por regiones dañadas (*damaged-based rendering*) para pintar únicamente los rectángulos de la pantalla que sufrieron cambios.
-
+  * [ ] Auditar asignaciones de memoria en reposo con herramientas de perfilado (`heaptrack` / `valgrind`) para cumplir el objetivo $\le 20 \text{ MB}$.
+  * [ ] Aplicar renderizado por regiones dañadas (*damaged-based rendering*) para pintar únicamente los rectángulos de la pantalla que sufrieron cambios.
 
 * [ ] **Empaquetado y Distribución**
-* [ ] Crear el descriptor de sesión de escritorio `assets/aerowm.desktop` para compatibilidad con display managers (GDM, SDDM).
-* [ ] Generar recetas de empaquetado para Arch Linux (`PKGBUILD`) y binarios estáticos auto-contenidos.
-* [ ] Crear batería de configuraciones de ejemplo documentadas (`examples/config.luau`).
+  * [ ] Crear el descriptor de sesión de escritorio `assets/aerowm.desktop` para compatibilidad con display managers (GDM, SDDM).
+  * [ ] Generar recetas de empaquetado para Arch Linux (`PKGBUILD`) y binarios estáticos auto-contenidos.
+  * [ ] Crear batería de configuraciones de ejemplo documentadas (`examples/config.luau`).
