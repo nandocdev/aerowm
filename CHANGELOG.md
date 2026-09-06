@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - 2026-09-06
 
 ### Added
+- **aerowm-core**: Implemented layout algorithms (`MonadTall`, `Columns`, `Max`) with unit tests.
 - **Workspace**: Configured Cargo virtual workspace to host modular crates.
 - **aerowm-core**: Initialized the core library crate.
 - **aerowm-core**: Implemented basic geometry primitives (`Point`, `Size`, `Rect`).
