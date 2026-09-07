@@ -19,10 +19,15 @@ impl SessionLockHandler for AerowmState {
         }
         self.is_locked = true;
         confirmation.lock();
+        
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            keyboard.set_focus(self, None::<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>, 0.into());
+        }
     }
 
     fn unlock(&mut self) {
         self.is_locked = false;
+        self.lock_surfaces.clear();
         // Typically we drop all lock surfaces here or let the client destroy them
     }
 
@@ -32,6 +37,13 @@ impl SessionLockHandler for AerowmState {
             state.size = Some((1920, 1080).into()); // Hardcoded bounds for now
         });
         surface.send_configure();
+        
+        // Give keyboard focus to the lock surface
+        if let Some(keyboard) = self.seat.get_keyboard() {
+            keyboard.set_focus(self, Some(surface.wl_surface().clone().into()), 0.into());
+        }
+        
+        self.lock_surfaces.push(surface);
     }
 }
 

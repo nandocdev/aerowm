@@ -144,24 +144,54 @@ fn render_frame(state: &mut AerowmState) {
         }
     };
     
-    let elements = state.space.render_elements_for_output(renderer, output, 1.0);
-    let elements = match elements {
-        Ok(e) => e,
-        Err(e) => {
-            warn!("Failed to get render elements: {}", e);
-            return;
+    let mut lock_elements = Vec::new();
+    if state.is_locked {
+        if let Some(lock_surface) = state.lock_surfaces.first() {
+            use smithay::backend::renderer::element::surface::{render_elements_from_surface_tree, WaylandSurfaceRenderElement};
+            use smithay::backend::renderer::element::Kind;
+            let mut tree = render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
+                renderer,
+                lock_surface.wl_surface(),
+                (0, 0),
+                1.0,
+                1.0,
+                Kind::Unspecified,
+            );
+            lock_elements.append(&mut tree);
         }
+    }
+
+    let elements = if !state.is_locked {
+        match state.space.render_elements_for_output(renderer, output, 1.0) {
+            Ok(e) => e,
+            Err(e) => {
+                warn!("Failed to get render elements: {}", e);
+                return;
+            }
+        }
+    } else {
+        Vec::new() // We can't use SpaceRenderElements when locked unless we define a macro.
     };
     
     // Render with damage tracking
     let clear_color = [0.0, 0.0, 0.0, 1.0];
-    let render_result = damage_tracker.render_output(
-        renderer,
-        &mut framebuffer,
-        age,
-        &elements,
-        clear_color,
-    );
+    let render_result = if state.is_locked {
+        damage_tracker.render_output(
+            renderer,
+            &mut framebuffer,
+            age,
+            &lock_elements,
+            clear_color,
+        )
+    } else {
+        damage_tracker.render_output(
+            renderer,
+            &mut framebuffer,
+            age,
+            &elements,
+            clear_color,
+        )
+    };
     
     // Extract damage before dropping framebuffer
     let damage = render_result.as_ref().ok().and_then(|r| r.damage).map(|v| v.clone());

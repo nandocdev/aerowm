@@ -204,6 +204,15 @@ fn pointer_focus_under(
     pos: Point<f64, Logical>,
 ) -> Option<(WlSurface, Point<f64, Logical>)> {
     use smithay::wayland::seat::WaylandFocus;
+    
+    // If session is locked, only the lock surface receives pointer input.
+    if state.is_locked {
+        if let Some(lock_surface) = state.lock_surfaces.first() {
+            return Some((lock_surface.wl_surface().clone(), pos));
+        }
+        return None;
+    }
+
     // Layers first so bars and launchers receive pointer input.
     if let Some(surface) = layer_focus_under(state, pos) {
         return Some((surface, pos));

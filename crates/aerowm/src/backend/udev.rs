@@ -644,13 +644,34 @@ pub fn render_udev_surface(state: &mut AerowmState, node: DrmNode, crtc: crtc::H
         let output = surface.output.clone();
         let renderer = &mut surface.renderer;
 
-        let elements = match state.space.render_elements_for_output(renderer, &output, 1.0) {
-            Ok(e) => e,
-            Err(e) => {
-                warn!("render elements failed: {e:?}");
-                surface.rendering = false;
-                return;
+        let mut lock_elements = Vec::new();
+        if state.is_locked {
+            if let Some(lock_surface) = state.lock_surfaces.first() {
+                use smithay::backend::renderer::element::surface::{render_elements_from_surface_tree, WaylandSurfaceRenderElement};
+                use smithay::backend::renderer::element::Kind;
+                let mut tree = render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
+                    renderer,
+                    lock_surface.wl_surface(),
+                    (0, 0),
+                    1.0,
+                    1.0,
+                    Kind::Unspecified,
+                );
+                lock_elements.append(&mut tree);
             }
+        }
+
+        let elements = if !state.is_locked {
+            match state.space.render_elements_for_output(renderer, &output, 1.0) {
+                Ok(e) => e,
+                Err(e) => {
+                    warn!("render elements failed: {e:?}");
+                    surface.rendering = false;
+                    return;
+                }
+            }
+        } else {
+            Vec::new()
         };
 
         let (dmabuf, age) = match surface.gbm_surface.next_buffer() {
