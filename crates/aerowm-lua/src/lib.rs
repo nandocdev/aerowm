@@ -6,6 +6,7 @@ use std::process::Command;
 pub struct WindowRules {
     pub floating: Option<bool>,
     pub workspace: Option<usize>,
+    pub scratchpad: Option<bool>,
 }
 
 /// The central Lua(u) scripting engine for AeroWM.
@@ -31,13 +32,33 @@ impl ScriptEngine {
         })?;
         aerowm_table.set("log", log_fn)?;
 
-        // Command execution binding: aero.spawn("kitty")
-        let spawn_fn = lua.create_function(|_, cmd: String| {
-            Command::new("sh")
-                .arg("-c")
-                .arg(&cmd)
-                .spawn()
-                .map_err(|e| mlua::Error::RuntimeError(format!("Failed to spawn {}: {}", cmd, e)))?;
+        // Command execution binding: aerowm.spawn("kitty") or aerowm.spawn({"kitty", "--class", "terminal"})
+        let spawn_fn = lua.create_function(|_, cmd: mlua::Value| {
+            match cmd {
+                mlua::Value::String(s) => {
+                    let cmd_str = s.to_str()?;
+                    Command::new("sh")
+                        .arg("-c")
+                        .arg(cmd_str.as_ref())
+                        .spawn()
+                        .map_err(|e| mlua::Error::RuntimeError(format!("Failed to spawn {}: {}", cmd_str.as_ref(), e)))?;
+                }
+                mlua::Value::Table(t) => {
+                    let len = t.len().unwrap_or(0);
+                    if len == 0 {
+                        return Err(mlua::Error::RuntimeError("Empty array passed to spawn".into()));
+                    }
+                    let prog: String = t.get(1)?;
+                    let mut cmd = Command::new(&prog);
+                    for i in 2..=len {
+                        let arg: String = t.get(i)?;
+                        cmd.arg(arg);
+                    }
+                    cmd.spawn()
+                        .map_err(|e| mlua::Error::RuntimeError(format!("Failed to spawn {}: {}", prog, e)))?;
+                }
+                _ => return Err(mlua::Error::RuntimeError("spawn expects a string or table of strings".into())),
+            }
             Ok(())
         })?;
         aerowm_table.set("spawn", spawn_fn)?;
@@ -58,26 +79,29 @@ impl ScriptEngine {
         let hooks_table = lua.create_table()?;
         aerowm_table.set("hooks", hooks_table)?;
 
-        // Table dedicated to window rules
+        // Window Rules table
         let rules_table = lua.create_table()?;
         aerowm_table.set("rules", rules_table)?;
 
-        // Inject the `aerowm` table into the Luau globals
+        // Add gaps configuration
+        let gaps_table = lua.create_table()?;
+        gaps_table.set("inner", 0)?;
+        gaps_table.set("outer", 0)?;
+        aerowm_table.set("gaps", gaps_table)?;
+
+        // Add borders configuration
+        let borders_table = lua.create_table()?;
+        borders_table.set("width", 0)?;
+        borders_table.set("active", "0xFFFFFFFF")?;
+        borders_table.set("inactive", "0xFF444444")?;
+        aerowm_table.set("borders", borders_table)?;
+
         lua.globals().set("aerowm", aerowm_table)?;
 
         Ok(Self { lua })
     }
 
-    /// Resolves the default configuration path (~/.config/aerowm/config.luau)
-    pub fn default_config_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|mut p| {
-            p.push("aerowm");
-            p.push("config.luau");
-            p
-        })
-    }
-
-    /// Safely evaluates the default configuration file if it exists.
+    /// Try to locate and load the default configuration file.
     pub fn load_default_config(&self) -> Result<()> {
         if let Some(path) = Self::default_config_path() {
             if path.exists() {
@@ -193,6 +217,9 @@ impl ScriptEngine {
                     if let Ok(Some(floating)) = set_tbl.get::<Option<bool>>("floating") {
                         result.floating = Some(floating);
                     }
+                    if let Ok(Some(sp)) = set_tbl.get::<Option<bool>>("scratchpad") {
+                        result.scratchpad = Some(sp);
+                    }
                     if let Ok(ws) = set_tbl.get::<usize>("workspace") {
                         result.workspace = Some(ws);
                     }
@@ -201,6 +228,62 @@ impl ScriptEngine {
         }
         
         result
+    }
+
+    /// Reads the `aerowm.workspaces` table and returns a list of workspace names.
+    /// If none are defined, returns a default set of 4 workspaces.
+    pub fn get_workspaces(&self) -> Vec<String> {
+        let mut result = Vec::new();
+        let globals = self.lua.globals();
+        if let Ok(aerowm) = globals.get::<Table>("aerowm") {
+            if let Ok(ws_table) = aerowm.get::<Table>("workspaces") {
+                for pair in ws_table.pairs::<mlua::Integer, String>() {
+                    if let Ok((_, name)) = pair {
+                        result.push(name);
+                    }
+                }
+            }
+        }
+        if result.is_empty() {
+            for i in 1..=4 {
+                result.push(i.to_string());
+            }
+        }
+        result
+    }
+
+    pub fn get_gaps(&self) -> (u32, u32) {
+        let globals = self.lua.globals();
+        if let Ok(aerowm) = globals.get::<mlua::Table>("aerowm") {
+            if let Ok(gaps) = aerowm.get::<mlua::Table>("gaps") {
+                let inner = gaps.get::<u32>("inner").unwrap_or(0);
+                let outer = gaps.get::<u32>("outer").unwrap_or(0);
+                return (inner, outer);
+            }
+        }
+        (0, 0)
+    }
+
+    pub fn get_borders(&self) -> (u32, String, String) {
+        let globals = self.lua.globals();
+        if let Ok(aerowm) = globals.get::<mlua::Table>("aerowm") {
+            if let Ok(borders) = aerowm.get::<mlua::Table>("borders") {
+                let width = borders.get::<u32>("width").unwrap_or(0);
+                let active = borders.get::<String>("active").unwrap_or_else(|_| "0xFFFFFF".to_string());
+                let inactive = borders.get::<String>("inactive").unwrap_or_else(|_| "0x444444".to_string());
+                return (width, active, inactive);
+            }
+        }
+        (0, "0xFFFFFF".to_string(), "0x444444".to_string())
+    }
+
+    pub fn default_config_path() -> Option<PathBuf> {
+        if let Ok(home) = std::env::var("HOME") {
+            let path = PathBuf::from(home).join(".config/aerowm/config.luau");
+            Some(path)
+        } else {
+            None
+        }
     }
 }
 

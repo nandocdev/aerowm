@@ -41,7 +41,10 @@ aerowm.binds[mod .. "+Shift+r"] = function()
     aerowm.spawn("aerowm-ctl restart")
 end
 
--- Workspace switching (core provides NUM_WORKSPACES = 4 by default)
+-- Workspaces
+aerowm.workspaces = { "1", "2", "3", "4" }
+
+-- Workspace switching
 for i = 1, 4 do
     -- Mod + [1-4] to switch workspace
     aerowm.binds[mod .. "+" .. tostring(i)] = function()
