@@ -101,9 +101,10 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] Gestionar la detección dinámica de monitores (`OutputHandler`), resoluciones nativas y tasas de refresco (V-Sync).
   * [x] Implementar el paso atómico de cambio de modo de pantalla (*Atomic Mode Setting*).
 
-* [ ] **Soporte para Paneles y Barras (`wlr-layer-shell`)**
-  * [ ] Implementar el protocolo `wlr-layer-shell` para permitir la integración de aplicaciones como `waybar`, fondos de pantalla (`wbg`, `swaybg`) y lanzadores de aplicaciones (`rofi-wayland`).
-  * [ ] Configurar la deducción del área de trabajo: restar el tamaño ocupado por los paneles antes de calcular el tiling de las ventanas.
+* [ ] **Soporte para Paneles y Barras (`wlr-layer-shell` y `aerowm-bar`)**
+  * [ ] Crear el binario cliente `aerowm-bar` usando Layer Shell e integrando los widgets definidos en Luau vía IPC.
+  * [ ] Implementar el protocolo `wlr-layer-shell` en el compositor.
+  * [ ] Configurar la deducción del área de trabajo (márgenes exclusivos) ocupada por la barra antes de calcular el tiling de las ventanas.
 
 * [ ] **Puntero y Foco por Ratón**
   * [ ] Implementar manipulación de ventanas con cursor: arrastre y cambio de tamaño interactivo para ventanas flotantes.
@@ -115,13 +116,23 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 
 **Objetivo:** Maximizar la fluidez visual, garantizar hot reload atómico, añadir compatibilidad legacy y empaquetar para distribuciones Linux.
 
-* [ ] **Soporte para Aplicaciones Legacy (`XWayland`)**
+* [ ] **Soporte Opcional para Aplicaciones Legacy (`XWayland`)**
+  * [ ] Configurar soporte tras un flag de compilación de Cargo (`--features xwayland`) para ahorrar memoria en instalaciones puras Wayland.
   * [ ] Inicializar el socket y contexto de XWayland dentro del ciclo de vida del compositor.
   * [ ] Integrar ventanas X11 convencionales dentro del árbol de distribución de Smithay y del core de layouts.
 
+* [ ] **Persistencia de Estado y Reinicio en Caliente**
+  * [ ] Serializar estado del WM (workspaces, layouts, ventanas) en `session.json` al solicitar un reinicio.
+  * [ ] Implementar transferencia del File Descriptor (FD) del socket de Wayland al nuevo binario vía `exec` para sobrevivir reinicios sin matar aplicaciones.
+
 * [ ] **Hot Reload Atómico de Configuración**
   * [ ] Implementar comando de recarga en caliente (`reload`): reevaluar `config.luau` en una nueva VM aislada sin destruir superficies activas ni reiniciar clientes Wayland.
+  * [ ] Implementar evaluación declarativa de Reglas de Ventana (`Match`/`Rule`) vía Luau (auto-asignar float, workspace, ocultas en Scratchpad).
   * [ ] Intercambio atómico de punteros de configuración en memoria con tiempo de ejecución $< 15 \text{ ms}$.
+
+* [ ] **Protocolos Extendidos de Wayland**
+  * [ ] Implementar `xdg-decoration-v1`, `fractional-scale-v1` y `viewporter` para escalado HiDPI y decoraciones SSD/CSD.
+  * [ ] Implementar `ext-session-lock-v1` (bloqueo de pantalla) y `wlr-screencopy-v1` (capturas y streaming).
 
 * [ ] **Optimización de Memoria y Renderizado**
   * [ ] Auditar asignaciones de memoria en reposo con herramientas de perfilado (`heaptrack` / `valgrind`) para cumplir el objetivo $\le 20 \text{ MB}$.
