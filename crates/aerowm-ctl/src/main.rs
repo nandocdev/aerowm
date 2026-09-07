@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use aerowm_ipc::{IpcCommand, IpcResponse, WorkspaceAction, IPC_SOCKET_PATH};
+use aerowm_ipc::{IpcCommand, IpcResponse, WorkspaceAction, ipc_socket_path};
 use std::os::unix::net::UnixStream;
 use std::io::{Read, Write};
 
@@ -62,12 +62,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let payload = serde_json::to_string(&ipc_command)?;
 
     // Connect to IPC socket
-    let stream_res = UnixStream::connect(IPC_SOCKET_PATH);
-    
+    let socket_path = ipc_socket_path();
+    let stream_res = UnixStream::connect(&socket_path);
+
     let mut stream = match stream_res {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("Failed to connect to AeroWM at {}. Is it running?", IPC_SOCKET_PATH);
+            eprintln!("Failed to connect to AeroWM at {}. Is it running?", socket_path.display());
             eprintln!("Error details: {}", e);
             std::process::exit(1);
         }

@@ -920,7 +920,12 @@ impl AerowmState {
         
         if let Some(ws_idx) = rules.workspace {
             let target_ws = ws_idx.saturating_sub(1);
-            if target_ws < self.workspaces.len() && target_ws != self.active_ws {
+            if target_ws >= self.workspaces.len() {
+                tracing::warn!(
+                    "window rule targets workspace {ws_idx}, only {} exist; ignoring",
+                    self.workspaces.len()
+                );
+            } else if target_ws != self.active_ws {
                 self.active_workspace_mut().remove_window(id);
                 self.workspaces[target_ws].add_window(id);
             }
@@ -945,7 +950,14 @@ impl AerowmState {
     }
 
     pub fn switch_workspace(&mut self, idx: usize) {
-        if idx >= self.workspaces.len() || idx == self.active_ws {
+        if idx >= self.workspaces.len() {
+            tracing::warn!(
+                "workspace switch to index {idx} ignored, only {} workspaces",
+                self.workspaces.len()
+            );
+            return;
+        }
+        if idx == self.active_ws {
             return;
         }
         self.active_ws = idx;

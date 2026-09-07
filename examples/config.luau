@@ -41,9 +41,9 @@ aerowm.binds[mod .. "+Shift+r"] = function()
     aerowm.spawn("aerowm-ctl restart")
 end
 
--- Workspace switching
-for i = 1, 9 do
-    -- Mod + [1-9] to switch workspace
+-- Workspace switching (core provides NUM_WORKSPACES = 4 by default)
+for i = 1, 4 do
+    -- Mod + [1-4] to switch workspace
     aerowm.binds[mod .. "+" .. tostring(i)] = function()
         aerowm.spawn("aerowm-ctl workspace switch " .. tostring(i))
     end
@@ -67,10 +67,10 @@ table.insert(aerowm.rules, {
     set = { floating = true }
 })
 
--- Force Discord to workspace 9
+-- Force Discord to workspace 3
 table.insert(aerowm.rules, {
     match = { class = "discord" },
-    set = { workspace = 9 }
+    set = { workspace = 3 }
 })
 
 -- Force Firefox to workspace 2

@@ -1,5 +1,5 @@
 use crate::geometry::Rect;
-use crate::layout::Layout;
+use crate::layout::{Layout, split_evenly};
 
 pub struct MonadTall {
     pub master_ratio: f32,
@@ -26,44 +26,40 @@ impl Layout for MonadTall {
         }
         
         if num_windows <= self.master_count {
-            let height_per_window = area.size.height / num_windows as u32;
+            let heights = split_evenly(area.size.height, num_windows);
             let mut rects = Vec::with_capacity(num_windows);
-            for i in 0..num_windows {
-                rects.push(Rect::new(
-                    area.origin.x,
-                    area.origin.y + (i as u32 * height_per_window) as i32,
-                    area.size.width,
-                    height_per_window,
-                ));
+            let mut y = area.origin.y;
+            for h in heights {
+                rects.push(Rect::new(area.origin.x, y, area.size.width, h));
+                y += h as i32;
             }
             return rects;
         }
 
         let master_width = (area.size.width as f32 * self.master_ratio) as u32;
         let stack_width = area.size.width - master_width;
-        
-        let master_height = area.size.height / self.master_count as u32;
+
+        let master_heights = split_evenly(area.size.height, self.master_count);
         let stack_count = num_windows - self.master_count;
-        let stack_height = area.size.height / stack_count as u32;
+        let stack_heights = split_evenly(area.size.height, stack_count);
 
         let mut rects = Vec::with_capacity(num_windows);
-        
-        for i in 0..self.master_count {
-            rects.push(Rect::new(
-                area.origin.x,
-                area.origin.y + (i as u32 * master_height) as i32,
-                master_width,
-                master_height,
-            ));
+
+        let mut y = area.origin.y;
+        for h in master_heights {
+            rects.push(Rect::new(area.origin.x, y, master_width, h));
+            y += h as i32;
         }
-        
-        for i in 0..stack_count {
+
+        let mut y = area.origin.y;
+        for h in stack_heights {
             rects.push(Rect::new(
                 area.origin.x + master_width as i32,
-                area.origin.y + (i as u32 * stack_height) as i32,
+                y,
                 stack_width,
-                stack_height,
+                h,
             ));
+            y += h as i32;
         }
 
         rects
@@ -100,10 +96,25 @@ mod tests {
         let layout = MonadTall::default();
         let area = Rect::new(0, 0, 1920, 1080);
         let rects = layout.apply(area, 3);
-        
+
         assert_eq!(rects.len(), 3);
         assert_eq!(rects[0], Rect::new(0, 0, 960, 1080));
         assert_eq!(rects[1], Rect::new(960, 0, 960, 540));
         assert_eq!(rects[2], Rect::new(960, 540, 960, 540));
+    }
+
+    #[test]
+    fn test_monad_tall_no_pixel_loss() {
+        // 8 windows: 1 master + 7 stack; 1080 / 7 = 154 rem 2, so the
+        // stack column must still tile exactly the full height.
+        let layout = MonadTall::default();
+        let area = Rect::new(0, 0, 1920, 1080);
+        let rects = layout.apply(area, 8);
+        assert_eq!(rects.len(), 8);
+        let stack_sum: u32 = rects[1..].iter().map(|r| r.size.height).sum();
+        assert_eq!(stack_sum, 1080, "stack column must cover full height");
+        // Last window ends exactly at the area edge.
+        let last = rects.last().unwrap();
+        assert_eq!(last.origin.y + last.size.height as i32, 1080);
     }
 }

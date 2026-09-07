@@ -69,4 +69,37 @@ pub enum IpcEvent {
     WindowClosed(usize),
 }
 
-pub const IPC_SOCKET_PATH: &str = "/tmp/aerowm.sock";
+/// Computes the IPC socket path at runtime.
+///
+/// Prefers `$XDG_RUNTIME_DIR/aerowm.sock` (per-user, `tmpfs`, cleaned up
+/// on logout) and falls back to `/tmp/aerowm-<uid>.sock` when the variable
+/// is unset (e.g. minimal environments). The uid suffix keeps multiple
+/// local users from colliding on, or hijacking, each other's socket —
+/// important because the socket exposes privileged commands
+/// (`spawn` via config, `kill`, `restart`, `exit`).
+pub fn ipc_socket_path() -> std::path::PathBuf {
+    if let Ok(dir) = std::env::var("XDG_RUNTIME_DIR")
+        && !dir.is_empty()
+    {
+        return std::path::PathBuf::from(dir).join("aerowm.sock");
+    }
+    #[cfg(unix)]
+    {
+        // Uid-suffixed so users never share a socket path.
+        let uid = get_euid().unwrap_or(0);
+        std::path::PathBuf::from(format!("/tmp/aerowm-{uid}.sock"))
+    }
+    #[cfg(not(unix))]
+    return std::path::PathBuf::from("/tmp/aerowm.sock");
+}
+
+#[cfg(unix)]
+fn get_euid() -> Option<u32> {
+    // No libc dependency in this crate: parse `/proc/self/status`.
+    std::fs::read_to_string("/proc/self/status")
+        .ok()?
+        .lines()
+        .find_map(|l| l.strip_prefix("Uid:"))
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|s| s.parse().ok())
+}

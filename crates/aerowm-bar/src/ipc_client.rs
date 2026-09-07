@@ -5,11 +5,12 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
-use aerowm_ipc::{CompositorSnapshot, IpcCommand, IpcEvent, IpcResponse, IPC_SOCKET_PATH};
+use aerowm_ipc::{CompositorSnapshot, IpcCommand, IpcEvent, IpcResponse, ipc_socket_path};
 
 fn send_raw(payload: &str) -> Result<UnixStream, String> {
-    let mut stream =
-        UnixStream::connect(IPC_SOCKET_PATH).map_err(|e| format!("connect {IPC_SOCKET_PATH}: {e}"))?;
+    let socket_path = ipc_socket_path();
+    let mut stream = UnixStream::connect(&socket_path)
+        .map_err(|e| format!("connect {}: {e}", socket_path.display()))?;
     stream
         .set_read_timeout(Some(Duration::from_secs(2)))
         .map_err(|e| format!("set timeout: {e}"))?;
