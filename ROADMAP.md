@@ -136,7 +136,7 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] **Optimización de Memoria y Renderizado**
   * [x] Aplicar renderizado por regiones dañadas (*damaged-based rendering*) para pintar únicamente los rectángulos de la pantalla que sufrieron cambios.
 
-* [ ] **Empaquetado y Distribución**
-  * [ ] Crear el descriptor de sesión de escritorio `assets/aerowm.desktop` para compatibilidad con display managers (GDM, SDDM).
-  * [ ] Generar recetas de empaquetado para Arch Linux (`PKGBUILD`) y binarios estáticos auto-contenidos.
-  * [ ] Crear batería de configuraciones de ejemplo documentadas (`examples/config.luau`).
+* [x] **Empaquetado y Distribución**
+  * [x] Crear el descriptor de sesión de escritorio `assets/aerowm.desktop` para compatibilidad con display managers (GDM, SDDM).
+  * [x] Generar recetas de empaquetado para Arch Linux (`PKGBUILD`) y binarios estáticos auto-contenidos.
+  * [x] Crear batería de configuraciones de ejemplo documentadas (`examples/config.luau`).

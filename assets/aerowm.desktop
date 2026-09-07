@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=AeroWM
+Comment=High-performance Wayland dynamic tiling window manager
+Exec=aerowm
+Type=Application
+DesktopNames=AeroWM
