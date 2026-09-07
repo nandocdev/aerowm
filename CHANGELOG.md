@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - 2026-09-06
 
 ### Added
+- **aerowm**: Implemented native Hardware Backend (`udev` / DRM-KMS) with libseat session integration.
+- **aerowm**: Integrated dynamic multi-monitor detection, native resolution setting, and per-output Tiling Layout calculation.
+- **aerowm**: Configured Atomic Mode Setting and strictly tied render loops to hardware V-Sync (VBlank events).
 - **aerowm**: Implemented core Smithay protocol delegates (`CompositorHandler`, `ShmHandler`, `XdgShellHandler`, `SeatHandler`) to accept and manage Wayland application surfaces.
 - **aerowm**: Linked `xdg-shell` Toplevel surfaces to the domain-driven `WindowId` and `Workspace` state.
 - **aerowm**: Integrated fully asynchronous `calloop`-based IPC Unix socket server in `ipc.rs` without `tokio` overhead, including a lightweight Pub/Sub broadcast system for status bars.

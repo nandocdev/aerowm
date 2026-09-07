@@ -85,10 +85,10 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] Ligar el ciclo de vida de cada `ToplevelSurface` Wayland con nuestro generador de `WindowId` del Core.
   * [x] Implementar un `DamageTracker` básico y pintar las ventanas en sus `Rect` correspondientes calculados por el motor de Layout.
 
-* [ ] **Mapeo de Entradas y Keybindings**
-  * [ ] Configurar la gestión de asientos (`SeatHandler`) para teclado y cursor.
-  * [ ] Implementar el despachador de atajos de teclado globales configurados previamente desde Luau.
-  * [ ] Implementar el cierre de ventanas (`kill_active`) y el ciclo entre espacios de trabajo mediante teclado.
+* [x] **Mapeo de Entradas y Keybindings**
+  * [x] Configurar la gestión de asientos (`SeatHandler`) para teclado y cursor.
+  * [x] Interceptar las pulsaciones de teclado desde el backend (`WinitEvent::Input`).
+  * [x] Delegar el despacho de la combinación (ej. `Super + Enter`) al motor de Luau, y si no hay coincidencia, usar acciones por defecto (`spawn`, `kill_active`, etc).
 
 ---
 
@@ -96,10 +96,10 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 
 **Objetivo:** Transformar el compositor en un entorno autónomo ejecutable directamente desde la consola (TTY) con soporte de monitores reales y paneles.
 
-* [ ] **Backend de Hardware Directo (`udev` / KMS)**
-  * [ ] Implementar el backend nativo `backend/udev.rs` usando las APIs de DRM, GBM y Libinput de Smithay.
-  * [ ] Gestionar la detección dinámica de monitores (`OutputHandler`), resoluciones nativas y tasas de refresco (V-Sync).
-  * [ ] Implementar el paso atómico de cambio de modo de pantalla (*Atomic Mode Setting*).
+* [x] **Backend de Hardware Directo (`udev` / KMS)**
+  * [x] Implementar el backend nativo `backend/udev.rs` usando las APIs de DRM, GBM y Libinput de Smithay.
+  * [x] Gestionar la detección dinámica de monitores (`OutputHandler`), resoluciones nativas y tasas de refresco (V-Sync).
+  * [x] Implementar el paso atómico de cambio de modo de pantalla (*Atomic Mode Setting*).
 
 * [ ] **Soporte para Paneles y Barras (`wlr-layer-shell`)**
   * [ ] Implementar el protocolo `wlr-layer-shell` para permitir la integración de aplicaciones como `waybar`, fondos de pantalla (`wbg`, `swaybg`) y lanzadores de aplicaciones (`rofi-wayland`).
