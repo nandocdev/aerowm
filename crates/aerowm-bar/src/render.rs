@@ -165,6 +165,14 @@ pub fn draw_bar(
         }
     }
 
+    
+    // Middle: layout
+    let layout_text = &snapshot.layout;
+    let layout_w = Canvas::text_width(layout_text);
+    if canvas.width > layout_w {
+        let mx = (canvas.width - layout_w) / 2;
+        canvas.text(layout_text, mx as i32, 7, config.foreground);
+    }
     // Right: clock.
     if has_clock {
         let pad = 8u32;
@@ -190,6 +198,7 @@ mod tests {
     fn test_snapshot() -> CompositorSnapshot {
         CompositorSnapshot {
             active: 0,
+            layout: "monad_tall".into(),
             workspaces: vec![
                 WorkspaceInfo {
                     name: "1".into(),

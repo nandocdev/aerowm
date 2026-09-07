@@ -371,7 +371,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .insert_source(source, |_, _, bar: &mut Bar| {
                 let changed = bar.ipc_sub.as_mut().map(|s| s.drain_events()).unwrap_or(0);
                 if changed > 0 {
-                    bar.refresh_state();
+                        bar.refresh_state();
                 }
                 Ok(calloop::PostAction::Continue)
             })
@@ -385,8 +385,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let now = current_clock();
             if now != bar.clock_cache {
                 bar.clock_cache = now;
+                bar.draw();
             }
-            bar.refresh_state();
             TimeoutAction::ToDuration(Duration::from_secs(1))
         })
         .map_err(|e| format!("timer: {e}"))?;
