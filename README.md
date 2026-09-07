@@ -56,15 +56,30 @@ If a configuration file doesn't exist, AeroWM will start with a blank state. You
 ```lua
 local mod = aerowm.mods.Mod4 -- Super / Windows key
 
+-- Visual Settings (Gaps)
+aerowm.gaps = {
+    inner = 5,
+    outer = 10,
+}
+
 -- Spawn a terminal
 aerowm.binds[mod .. "+Return"] = function()
     aerowm.spawn("kitty")
+end
+
+-- Toggle Scratchpad
+aerowm.binds[mod .. "+Shift+Return"] = function()
+    aerowm.spawn("aerowm-ctl scratchpad")
 end
 
 -- Declarative Window Rules
 table.insert(aerowm.rules, {
     match = { class = "pavucontrol" },
     set = { floating = true }
+})
+table.insert(aerowm.rules, {
+    match = { class = "keepassxc" },
+    set = { scratchpad = true }
 })
 
 -- Hooks
@@ -93,6 +108,7 @@ AeroWM provides an IPC CLI for interacting with the compositor remotely:
 aerowm-ctl workspace next        # Go to next workspace
 aerowm-ctl workspace switch 3    # Switch to workspace 3
 aerowm-ctl kill                  # Kill active window
+aerowm-ctl scratchpad            # Toggle scratchpad workspace
 aerowm-ctl reload                # Hot-reload config.luau atomically
 aerowm-ctl restart               # Hot-restart compositor in place
 ```
