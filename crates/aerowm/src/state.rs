@@ -112,6 +112,8 @@ pub struct AerowmState {
     // macros dispatch through the globals on the DisplayHandle. The fields
     // must still be retained — dropping them would unregister the globals.
     #[allow(dead_code)]
+    pub session_lock_state: smithay::wayland::session_lock::SessionLockManagerState,
+    pub is_locked: bool,
     pub xdg_decoration_state: XdgDecorationState,
     #[allow(dead_code)]
     pub fractional_scale_state: FractionalScaleManagerState,
@@ -185,6 +187,8 @@ impl AerowmState {
             compositor_state: CompositorState::new::<Self>(display_handle),
             shm_state: ShmState::new::<Self>(display_handle, vec![]),
             xdg_shell_state: XdgShellState::new::<Self>(display_handle),
+            session_lock_state: smithay::wayland::session_lock::SessionLockManagerState::new::<Self, _>(display_handle, |_| true),
+            is_locked: false,
             xdg_decoration_state: XdgDecorationState::new::<Self>(display_handle),
             fractional_scale_state: FractionalScaleManagerState::new::<Self>(display_handle),
             viewporter_state: ViewporterState::new::<Self>(display_handle),

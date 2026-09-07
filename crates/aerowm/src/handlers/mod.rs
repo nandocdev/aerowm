@@ -5,3 +5,4 @@ pub mod seat;
 #[cfg(feature = "xwayland")]
 pub mod xwayland;
 pub mod protocols;
+pub mod session_lock;
