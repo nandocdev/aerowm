@@ -2,5 +2,6 @@
 members = [
     "crates/aerowm",
     "crates/aerowm-core", "crates/aerowm-ctl", "crates/aerowm-ipc", "crates/aerowm-lua",
+    "crates/aerowm-bar",
 ]
 resolver = "2"

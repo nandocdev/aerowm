@@ -101,10 +101,10 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] Gestionar la detección dinámica de monitores (`OutputHandler`), resoluciones nativas y tasas de refresco (V-Sync).
   * [x] Implementar el paso atómico de cambio de modo de pantalla (*Atomic Mode Setting*).
 
-* [ ] **Soporte para Paneles y Barras (`wlr-layer-shell` y `aerowm-bar`)**
-  * [ ] Crear el binario cliente `aerowm-bar` usando Layer Shell e integrando los widgets definidos en Luau vía IPC.
-  * [ ] Implementar el protocolo `wlr-layer-shell` en el compositor.
-  * [ ] Configurar la deducción del área de trabajo (márgenes exclusivos) ocupada por la barra antes de calcular el tiling de las ventanas.
+* [x] **Soporte para Paneles y Barras (`wlr-layer-shell` y `aerowm-bar`)**
+  * [x] Crear el binario cliente `aerowm-bar` usando Layer Shell e integrando los widgets definidos en Luau vía IPC.
+  * [x] Implementar el protocolo `wlr-layer-shell` en el compositor.
+  * [x] Configurar la deducción del área de trabajo (márgenes exclusivos) ocupada por la barra antes de calcular el tiling de las ventanas.
 
 * [ ] **Puntero y Foco por Ratón**
   * [ ] Implementar manipulación de ventanas con cursor: arrastre y cambio de tamaño interactivo para ventanas flotantes.

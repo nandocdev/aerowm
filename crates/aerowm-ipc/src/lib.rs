@@ -13,6 +13,33 @@ pub enum IpcCommand {
     Exit,
     /// Subscribe to live events stream (Pub/Sub)
     Subscribe,
+    /// Query a full state snapshot (workspaces, focus). Used by `aerowm-bar`.
+    /// The snapshot is returned as JSON inside [`IpcResponse::message`].
+    GetState,
+}
+
+/// Point-in-time view of the compositor, polled by status clients.
+///
+/// Field additions are backward compatible as long as old fields keep
+/// their names and types (serde ignores unknown fields on parse).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CompositorSnapshot {
+    /// One entry per workspace, in index order.
+    pub workspaces: Vec<WorkspaceInfo>,
+    /// Index into [`CompositorSnapshot::workspaces`] of the active workspace.
+    pub active: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WorkspaceInfo {
+    /// User-facing name ("1", "2", ...).
+    pub name: String,
+    /// `true` when this is the active workspace.
+    pub active: bool,
+    /// Number of tiled windows on this workspace.
+    pub window_count: usize,
+    /// Window id of the focused window, if any.
+    pub focused_window: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

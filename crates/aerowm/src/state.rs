@@ -6,6 +6,7 @@ use aerowm_ipc::IpcEvent;
 
 use smithay::wayland::compositor::CompositorState;
 use smithay::wayland::shm::ShmState;
+use smithay::wayland::shell::wlr_layer::WlrLayerShellState;
 use smithay::wayland::shell::xdg::{XdgShellState, ToplevelSurface};
 use smithay::input::{Seat, SeatState, keyboard::XkbConfig};
 use smithay::desktop::space::Space;
@@ -35,6 +36,7 @@ pub struct AerowmState {
     pub compositor_state: CompositorState,
     pub shm_state: ShmState,
     pub xdg_shell_state: XdgShellState,
+    pub layer_shell_state: WlrLayerShellState,
     pub seat_state: SeatState<Self>,
     pub seat: Seat<Self>,
     pub pointer_location: Point<f64, Logical>,
@@ -71,6 +73,7 @@ impl AerowmState {
             compositor_state: CompositorState::new::<Self>(display_handle),
             shm_state: ShmState::new::<Self>(display_handle, vec![]),
             xdg_shell_state: XdgShellState::new::<Self>(display_handle),
+            layer_shell_state: WlrLayerShellState::new::<Self>(display_handle),
             seat_state,
             seat,
             pointer_location: Point::from((0.0, 0.0)),
@@ -95,6 +98,25 @@ impl AerowmState {
         &mut self.workspaces[self.active_ws]
     }
 
+    /// Builds a serializable snapshot for status clients (`aerowm-bar`).
+    pub fn snapshot(&self) -> aerowm_ipc::CompositorSnapshot {
+        let workspaces = self
+            .workspaces
+            .iter()
+            .enumerate()
+            .map(|(idx, ws)| aerowm_ipc::WorkspaceInfo {
+                name: ws.name.clone(),
+                active: idx == self.active_ws,
+                window_count: ws.get_windows().len(),
+                focused_window: ws.get_focused().map(|id| id.as_usize()),
+            })
+            .collect();
+        aerowm_ipc::CompositorSnapshot {
+            workspaces,
+            active: self.active_ws,
+        }
+    }
+
     /// Broadcasts a live event to all connected Pub/Sub IPC clients (e.g. status bars).
     pub fn broadcast_event(&mut self, event: IpcEvent) {
         if self.subscribers.is_empty() {
@@ -110,13 +132,36 @@ impl AerowmState {
         }
     }
 
+    /// Usable tiling area of an output: full output geometry minus the
+    /// exclusive zones reserved by layer-shell surfaces (bars, panels).
+    pub fn usable_area_for_output(&self, output: &Output) -> CoreRect {
+        let zone = smithay::desktop::layer_map_for_output(output).non_exclusive_zone();
+        let origin = self
+            .space
+            .output_geometry(output)
+            .map(|g| g.loc)
+            .unwrap_or_default();
+        CoreRect::new(
+            origin.x + zone.loc.x,
+            origin.y + zone.loc.y,
+            zone.size.w.max(0) as u32,
+            zone.size.h.max(0) as u32,
+        )
+    }
+
     /// Apply the current layout to all windows in the active workspace
     pub fn apply_layout(&mut self) {
-        let Some(output_size) = self.output_size else {
-            return;
+        // Tile inside the usable area so layer-shell bars/panels are
+        // never covered by tiled windows.
+        let area = match self.output.clone() {
+            Some(output) => self.usable_area_for_output(&output),
+            None => {
+                let Some(output_size) = self.output_size else {
+                    return;
+                };
+                CoreRect::new(0, 0, output_size.w as u32, output_size.h as u32)
+            }
         };
-
-        let area = CoreRect::new(0, 0, output_size.w as u32, output_size.h as u32);
         self.apply_layout_in(area);
     }
 
@@ -183,10 +228,41 @@ impl AerowmState {
             .and_then(|id| self.surfaces.get(&id).cloned())
     }
 
+    /// Layer surface with exclusive keyboard grab (lock screens, launcher
+    /// popups), if any. It takes precedence over tiled windows.
+    fn exclusive_layer_focus(&self) -> Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface> {
+        use smithay::wayland::shell::wlr_layer::KeyboardInteractivity;
+        for output in self.space.outputs() {
+            let map = smithay::desktop::layer_map_for_output(output);
+            for layer in map.layers() {
+                if layer.can_receive_keyboard_focus()
+                    && layer.cached_state().keyboard_interactivity
+                        == KeyboardInteractivity::Exclusive
+                {
+                    return Some(layer.wl_surface().clone());
+                }
+            }
+        }
+        None
+    }
+
     /// Syncs Smithay keyboard focus + window activation with the workspace focus.
     pub fn update_keyboard_focus(&mut self) {
-        let focused = self.focused_surface();
         let serial = SERIAL_COUNTER.next_serial();
+
+        // Exclusive layer surfaces (lock screens) steal all keyboard input.
+        if let Some(surface) = self.exclusive_layer_focus() {
+            for window in self.space.elements() {
+                window.set_activated(false);
+            }
+            let seat = self.seat.clone();
+            if let Some(keyboard) = seat.get_keyboard() {
+                keyboard.set_focus(self, Some(surface), serial);
+            }
+            return;
+        }
+
+        let focused = self.focused_surface();
 
         // Activate the focused window, deactivate the rest.
         for window in self.space.elements() {

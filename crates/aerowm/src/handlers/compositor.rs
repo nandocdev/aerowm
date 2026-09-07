@@ -42,10 +42,38 @@ impl CompositorHandler for AerowmState {
         }
     }
     
-    fn commit(&mut self, _surface: &WlSurface) {
+    fn commit(&mut self, surface: &WlSurface) {
+        use smithay::backend::renderer::utils::on_commit_buffer_handler;
+        use smithay::desktop::layer_map_for_output;
+
+        // Buffer/damage bookkeeping for every surface (windows and layers).
+        on_commit_buffer_handler::<Self>(surface);
+
         // Surface committed: call on_commit on all windows to update damage tracking
         for window in self.space.elements() {
             window.on_commit();
+        }
+        self.popup_manager.commit(surface);
+
+        // If a layer surface changed (size, anchor, margins, exclusive
+        // zone), re-arrange its output map and re-tile around it.
+        let outputs: Vec<_> = self.space.outputs().cloned().collect();
+        for output in &outputs {
+            let changed = {
+                let mut map = layer_map_for_output(output);
+                let is_layer = map
+                    .layers()
+                    .any(|l| l.wl_surface() == surface);
+                if is_layer {
+                    map.arrange()
+                } else {
+                    false
+                }
+            };
+            if changed {
+                self.apply_layout();
+                break;
+            }
         }
     }
 }

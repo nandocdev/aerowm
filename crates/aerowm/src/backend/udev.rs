@@ -36,8 +36,6 @@ use smithay::utils::{DeviceFd, Point, Size};
 use tracing::{debug, error, info, warn};
 use wayland_server::{Display, DisplayHandle};
 
-use aerowm_core::geometry::Rect as CoreRect;
-
 use crate::state::AerowmState;
 
 /// Preferred scanout formats, 10-bit first like anvil.
@@ -497,8 +495,9 @@ fn connector_connected(
     state
         .output_size
         .get_or_insert(Size::from((w as i32, h as i32)));
-    // Tile the active workspace on the new monitor area.
-    let area = CoreRect::new(x, 0, w as u32, h as u32);
+    // Tile the active workspace on the usable monitor area (exclusive
+    // zones of layer-shell bars/panels are deducted automatically).
+    let area = state.usable_area_for_output(&output);
     state.apply_layout_in(area);
 
     // --- DRM surface + GBM swapchain -------------------------------------------

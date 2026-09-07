@@ -137,13 +137,67 @@ pub fn handle_keyboard(state: &mut AerowmState, event: WinitKeyboardInputEvent) 
     handle_keyboard_input(state, event.key_code(), event.state(), event.time() as u32);
 }
 
+/// Topmost layer-shell surface under the cursor, if any.
+///
+/// Layers (bars, launchers, notifications) sit above tiled windows, so they
+/// are hit-tested first. Returns the surface; rank prefers Overlay > Top >
+/// Bottom > Background, then most-recently mapped.
+fn layer_focus_under(state: &AerowmState, pos: Point<f64, Logical>) -> Option<WlSurface> {
+    use smithay::desktop::layer_map_for_output;
+    use smithay::wayland::shell::wlr_layer::Layer;
+
+    fn rank(layer: Layer) -> u8 {
+        match layer {
+            Layer::Background => 0,
+            Layer::Bottom => 1,
+            Layer::Top => 2,
+            Layer::Overlay => 3,
+        }
+    }
+
+    let mut best: Option<(u8, usize, WlSurface)> = None;
+    for output in state.space.outputs() {
+        let origin = state
+            .space
+            .output_geometry(output)
+            .map(|g| g.loc)
+            .unwrap_or_default();
+        let map = layer_map_for_output(output);
+        for (idx, layer) in map.layers().enumerate() {
+            let Some(geo) = map.layer_geometry(layer) else {
+                continue;
+            };
+            let rect = smithay::utils::Rectangle::new(
+                (origin.x + geo.loc.x, origin.y + geo.loc.y).into(),
+                (geo.size.w, geo.size.h).into(),
+            );
+            if rect.contains(pos.to_i32_round()) {
+                let candidate = (rank(layer.layer()), idx, layer.wl_surface().clone());
+                if best.as_ref().map(|b| (b.0, b.1) <= (candidate.0, candidate.1)).unwrap_or(true) {
+                    best = Some(candidate);
+                }
+            }
+        }
+    }
+    best.map(|(_, _, surface)| surface)
+}
+
 fn pointer_focus_under(
     state: &AerowmState,
     pos: Point<f64, Logical>,
 ) -> Option<(WlSurface, Point<f64, Logical>)> {
+    // Layers first so bars and launchers receive pointer input.
+    if let Some(surface) = layer_focus_under(state, pos) {
+        return Some((surface, pos));
+    }
     let (window, _) = state.space.element_under(pos)?;
     let surface = window.toplevel()?.wl_surface().clone();
     Some((surface, pos))
+}
+
+/// `true` when a layer-shell surface covers the cursor position.
+fn layer_under_cursor(state: &AerowmState) -> bool {
+    layer_focus_under(state, state.pointer_location).is_some()
 }
 
 /// Moves the pointer to an absolute logical position (shared path).
@@ -194,8 +248,10 @@ pub fn pointer_button_event(
     btn_state: ButtonState,
     time: u32,
 ) {
-    // Click-to-focus: focus the window under the cursor on press.
-    if btn_state == ButtonState::Pressed {
+    // Click-to-focus: focus the window under the cursor on press, unless
+    // a layer-shell surface (bar, launcher) is on top — layers keep their
+    // own input without stealing tiling focus.
+    if btn_state == ButtonState::Pressed && !layer_under_cursor(state) {
         let pos = state.pointer_location;
         let toplevel = state
             .space

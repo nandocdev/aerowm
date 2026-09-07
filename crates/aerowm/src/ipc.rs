@@ -33,7 +33,20 @@ pub fn init_ipc_socket(
                         let payload = String::from_utf8_lossy(&buf[..bytes_read]);
                         // Parse command
                         if let Ok(command) = serde_json::from_str::<IpcCommand>(payload.trim()) {
+                            // `GetState` answers with a snapshot instead of a plain ACK.
+                            if matches!(command, IpcCommand::GetState) {
+                                let snapshot = state.snapshot();
+                                let response = IpcResponse {
+                                    success: true,
+                                    message: serde_json::to_string(&snapshot).ok(),
+                                };
+                                let resp_str =
+                                    serde_json::to_string(&response).unwrap_or_default();
+                                let _ = stream.write_all(resp_str.as_bytes());
+                                return Ok(PostAction::Continue);
+                            }
                             match command {
+                                IpcCommand::GetState => unreachable!("handled above"),
                                 IpcCommand::Subscribe => {
                                     info!("New IPC subscriber connected");
                                     stream.set_nonblocking(true).ok();

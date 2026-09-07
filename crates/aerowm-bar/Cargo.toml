@@ -1,0 +1,22 @@
+[package]
+name = "aerowm-bar"
+version = "0.1.0"
+edition = "2024"
+description = "AeroWM status bar: layer-shell client with Luau-defined widgets fed over IPC"
+
+[[bin]]
+name = "aerowm-bar"
+path = "src/main.rs"
+
+[dependencies]
+aerowm-ipc = { version = "0.1.0", path = "../aerowm-ipc" }
+smithay-client-toolkit = "0.19"
+wayland-client = "0.31"
+calloop = "0.13"
+calloop-wayland-source = "0.3.0"
+serde_json = "1.0.151"
+mlua = { version = "0.12.1", features = ["luau"] }
+chrono = "0.4"
+embedded-graphics = "0.8"
+log = "0.4"
+env_logger = "0.11"
