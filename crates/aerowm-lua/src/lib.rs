@@ -101,6 +101,21 @@ impl ScriptEngine {
         Ok(())
     }
 
+    /// Number of entries in `aerowm.rules`. Useful to verify a config
+    /// actually registered rules (e.g. `aerowm check`, integration tests).
+    pub fn rule_count(&self) -> usize {
+        let globals = self.lua.globals();
+        let aerowm: Table = match globals.get("aerowm") {
+            Ok(t) => t,
+            Err(_) => return 0,
+        };
+        let rules: Table = match aerowm.get("rules") {
+            Ok(t) => t,
+            Err(_) => return 0,
+        };
+        rules.len().unwrap_or(0).max(0) as usize
+    }
+
     /// Emits a lifecycle event (hook) to the Luau environment.
     pub fn emit_hook(&self, hook_name: &str) -> Result<()> {
         let globals = self.lua.globals();
@@ -173,7 +188,9 @@ impl ScriptEngine {
             
             if class_match && title_match {
                 if let Ok(set_tbl) = rule.get::<Table>("set") {
-                    if let Ok(floating) = set_tbl.get::<bool>("floating") {
+                    // Absent key must stay `None` (a missing `floating`
+                    // is not `false`): use Option so Nil maps to None.
+                    if let Ok(Some(floating)) = set_tbl.get::<Option<bool>>("floating") {
                         result.floating = Some(floating);
                     }
                     if let Ok(ws) = set_tbl.get::<usize>("workspace") {

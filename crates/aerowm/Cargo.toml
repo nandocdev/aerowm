@@ -22,3 +22,9 @@ default = []
 # Legacy X11 application support via XWayland. Off by default so pure
 # Wayland installs skip the x11rb stack and the XWayland runtime entirely.
 xwayland = ["smithay/xwayland"]
+
+[dev-dependencies]
+wayland-client = "0.31"
+wayland-protocols = "0.32"
+wayland-server = "0.31"
+smithay = "0.7.0"

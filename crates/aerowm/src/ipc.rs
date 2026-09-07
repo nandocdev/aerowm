@@ -1,14 +1,9 @@
 use calloop::{generic::Generic, Interest, Mode, LoopHandle, PostAction};
 use std::os::unix::net::UnixListener;
-use std::io::{Read, Write};
+use std::io::Write;
 use tracing::{info, warn, error};
-use aerowm_ipc::{IpcCommand, IpcResponse, WorkspaceAction, ipc_socket_path};
+use aerowm_ipc::{IpcCommand, IpcResponse, WorkspaceAction, ipc_socket_path, read_frame};
 use crate::state::AerowmState;
-
-/// Hard cap for a single IPC request line. Commands are tiny JSON
-/// objects; anything larger is a bug or abuse — drop it instead of
-/// buffering unboundedly.
-const MAX_IPC_LINE: usize = 64 * 1024;
 
 pub fn init_ipc_socket(
     loop_handle: LoopHandle<'_, AerowmState>,
@@ -38,43 +33,16 @@ pub fn init_ipc_socket(
     loop_handle.insert_source(source, |_, listener, state| {
         match listener.accept() {
             Ok((mut stream, _)) => {
-                // Frame the request as one newline-delimited JSON line.
-                // Clients (aerowm-ctl, aerowm-bar) always terminate with
-                // `\n`; read until it (or EOF) instead of trusting a
-                // single `read` to deliver the whole datagram — stream
-                // sockets may split or coalesce writes, and payloads can
-                // exceed any fixed buffer.
-                if stream.set_nonblocking(false).is_err() {
-                    return Ok(PostAction::Continue);
-                }
-                let mut line = Vec::with_capacity(256);
-                let mut tmp = [0u8; 1024];
-                let framed = loop {
-                    if line.len() > MAX_IPC_LINE {
-                        warn!("IPC payload exceeds {MAX_IPC_LINE} bytes, dropping");
-                        break None;
-                    }
-                    match stream.read(&mut tmp) {
-                        Ok(0) => break Some(()), // EOF: parse what we got
-                        Ok(n) => {
-                            line.extend_from_slice(&tmp[..n]);
-                            if line.contains(&b'\n') {
-                                break Some(());
-                            }
-                        }
-                        Err(e) => {
-                            warn!("IPC read error: {e}");
-                            break None;
-                        }
+                // One newline-delimited JSON frame per connection; see
+                // `aerowm_ipc::read_frame` for the reassembly contract.
+                let payload = match read_frame(&mut stream) {
+                    Ok(Some(line)) => line,
+                    Ok(None) => return Ok(PostAction::Continue), // clean EOF
+                    Err(e) => {
+                        warn!("IPC frame error: {e}");
+                        return Ok(PostAction::Continue);
                     }
                 };
-                if framed.is_none() {
-                    return Ok(PostAction::Continue);
-                }
-                // First line only; anything pipelined after it is not part
-                // of this protocol (one connection = one command).
-                let payload = String::from_utf8_lossy(&line);
-                let payload = payload.lines().next().unwrap_or("");
                 // Parse command
                 if let Ok(command) = serde_json::from_str::<IpcCommand>(payload.trim()) {
                     // `GetState` answers with a snapshot instead of a plain ACK.

@@ -103,3 +103,50 @@ fn get_euid() -> Option<u32> {
         .and_then(|rest| rest.split_whitespace().next())
         .and_then(|s| s.parse().ok())
 }
+
+/// Hard cap for a single IPC request line. Commands are tiny JSON
+/// objects; anything larger is a bug or abuse — reject it instead of
+/// buffering unboundedly.
+pub const MAX_FRAME_BYTES: usize = 64 * 1024;
+
+/// Reads one newline-delimited JSON frame from `stream`.
+///
+/// Stream sockets may split or coalesce writes, so this loops until the
+/// first `\n` (or EOF) instead of trusting a single `read`. Returns the
+/// first line without the terminator; any bytes pipelined after it do not
+/// belong to this protocol (one connection = one command) and are
+/// discarded. Returns `Ok(None)` on clean EOF with no data, `Err` on
+/// I/O errors or oversized frames. The stream is put in blocking mode
+/// for the duration of the read.
+pub fn read_frame(
+    stream: &mut std::os::unix::net::UnixStream,
+) -> std::io::Result<Option<String>> {
+    use std::io::Read;
+    stream.set_nonblocking(false)?;
+    let mut buf = Vec::with_capacity(256);
+    let mut tmp = [0u8; 1024];
+    loop {
+        if buf.len() > MAX_FRAME_BYTES {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "IPC frame exceeds size limit",
+            ));
+        }
+        match stream.read(&mut tmp) {
+            Ok(0) => break, // EOF: parse what we got
+            Ok(n) => {
+                buf.extend_from_slice(&tmp[..n]);
+                if buf.contains(&b'\n') {
+                    break;
+                }
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    if buf.is_empty() {
+        return Ok(None);
+    }
+    let end = buf.iter().position(|&b| b == b'\n').unwrap_or(buf.len());
+    buf.truncate(end);
+    Ok(Some(String::from_utf8_lossy(&buf).into_owned()))
+}

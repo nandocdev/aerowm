@@ -61,6 +61,18 @@ impl XdgShellHandler for AerowmState {
         // Handle grab for popups - simplified for now
     }
 
+    fn app_id_changed(&mut self, surface: ToplevelSurface) {
+        // Identity arrives after role assignment: `new_toplevel` fires
+        // inside the GetToplevel request, before the client can send
+        // set_app_id/set_title, so map-time rules almost always see
+        // empty strings. Re-evaluate here where the data is real.
+        self.reapply_rules_for_toplevel(&surface);
+    }
+
+    fn title_changed(&mut self, surface: ToplevelSurface) {
+        self.reapply_rules_for_toplevel(&surface);
+    }
+
     fn reposition_request(
         &mut self,
         _surface: PopupSurface,

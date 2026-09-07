@@ -926,7 +926,12 @@ impl AerowmState {
                     self.workspaces.len()
                 );
             } else if target_ws != self.active_ws {
-                self.active_workspace_mut().remove_window(id);
+                // Remove from whichever workspace currently holds it:
+                // rules are re-evaluated on app_id/title change, so this
+                // must be idempotent (never duplicate the entry).
+                for ws in &mut self.workspaces {
+                    ws.remove_window(id);
+                }
                 self.workspaces[target_ws].add_window(id);
             }
         }
@@ -936,6 +941,21 @@ impl AerowmState {
                 self.float_window(id);
             }
         }
+    }
+
+    /// Re-evaluates Luau window rules for a mapped toplevel whose identity
+    /// changed (see `app_id_changed`/`title_changed`: at `new_toplevel`
+    /// time app_id/title are still empty). Idempotent.
+    pub fn reapply_rules_for_toplevel(&mut self, surface: &ToplevelSurface) {
+        let Some((&id, _)) = self.surfaces.iter().find(|(_, s)| *s == surface) else {
+            return;
+        };
+        let app = crate::session::app_id_of_toplevel(surface);
+        let app_id = app.as_ref().map(|a| a.id.as_str()).unwrap_or("");
+        let title = app.as_ref().and_then(|a| a.title.as_deref());
+        self.apply_window_rules(id, app_id, title);
+        self.apply_layout();
+        self.update_keyboard_focus();
     }
 
     /// Performs an atomic Hot Reload of the Luau configuration.

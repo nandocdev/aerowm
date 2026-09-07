@@ -1,16 +1,9 @@
-mod state;
-mod backend;
-mod input;
-mod ipc;
-mod handlers;
-mod session;
-mod wayland_socket;
-
 use tracing::{error, info, warn};
 use calloop::EventLoop;
 use wayland_server::Display;
 use aerowm_lua::ScriptEngine;
-use crate::state::AerowmState;
+use aerowm::state::AerowmState;
+use aerowm::{backend, ipc, session, wayland_socket};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
