@@ -29,6 +29,66 @@ use aerowm_core::geometry::Rect as CoreRect;
 
 pub const NUM_WORKSPACES: usize = 4;
 
+/// Minimum user-resizable size for floating windows.
+pub const MIN_FLOAT_W: i32 = 120;
+pub const MIN_FLOAT_H: i32 = 80;
+
+/// Corner grabbed for an interactive resize.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GrabCorner {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+/// Pointer grab state for interactive move/resize of floating windows.
+///
+/// While a grab is active, pointer motion and the grabbing button are
+/// consumed by the compositor (not forwarded to clients).
+#[derive(Debug, Clone, Copy)]
+pub enum PointerGrabState {
+    None,
+    Move {
+        id: WindowId,
+        button: u32,
+        dx: f64,
+        dy: f64,
+    },
+    Resize {
+        id: WindowId,
+        button: u32,
+        corner: GrabCorner,
+        start: CoreRect,
+        cursor_x: f64,
+        cursor_y: f64,
+    },
+}
+
+impl PointerGrabState {
+    pub fn is_active(&self) -> bool {
+        !matches!(self, PointerGrabState::None)
+    }
+
+    /// Button that initiated the grab, if any.
+    pub fn button(&self) -> Option<u32> {
+        match *self {
+            PointerGrabState::None => None,
+            PointerGrabState::Move { button, .. } | PointerGrabState::Resize { button, .. } => {
+                Some(button)
+            }
+        }
+    }
+
+    /// Window being manipulated, if any.
+    pub fn window_id(&self) -> Option<WindowId> {
+        match *self {
+            PointerGrabState::None => None,
+            PointerGrabState::Move { id, .. } | PointerGrabState::Resize { id, .. } => Some(id),
+        }
+    }
+}
+
 pub struct AerowmState {
     pub engine: ScriptEngine,
     pub is_running: bool,
@@ -44,6 +104,12 @@ pub struct AerowmState {
     pub workspaces: Vec<Workspace>,
     pub active_ws: usize,
     pub surfaces: HashMap<WindowId, ToplevelSurface>,
+
+    /// Active pointer move/resize grab, if any.
+    pub grab: PointerGrabState,
+    /// Pinned user geometry of floating windows (source of truth for
+    /// drag/resize and workspace remaps).
+    pub float_geo: HashMap<WindowId, CoreRect>,
 
     pub space: Space<Window>,
     pub output: Option<Output>,
@@ -80,6 +146,8 @@ impl AerowmState {
             workspaces,
             active_ws: 0,
             surfaces: HashMap::new(),
+            grab: PointerGrabState::None,
+            float_geo: HashMap::new(),
             space: Space::default(),
             output: None,
             damage_tracker: None,
@@ -205,6 +273,10 @@ impl AerowmState {
 
         for id in dead_window_ids {
             self.surfaces.remove(&id);
+            self.float_geo.remove(&id);
+            if self.grab.window_id() == Some(id) {
+                self.grab = PointerGrabState::None;
+            }
             for ws in &mut self.workspaces {
                 ws.remove_window(id);
             }
@@ -314,6 +386,169 @@ impl AerowmState {
         self.apply_layout();
     }
 
+    /// Window object currently mapped for a window id, if any.
+    fn window_object(&self, id: WindowId) -> Option<Window> {
+        let surface = self.surfaces.get(&id)?;
+        self.space
+            .elements()
+            .find(|w| w.toplevel() == Some(surface))
+            .cloned()
+    }
+
+    /// Current space geometry (location + committed size) of a window id.
+    fn window_rect(&self, id: WindowId) -> Option<CoreRect> {
+        let window = self.window_object(id)?;
+        let loc = self.space.element_location(&window)?;
+        let size = window.geometry().size;
+        Some(CoreRect::new(
+            loc.x,
+            loc.y,
+            size.w.max(0) as u32,
+            size.h.max(0) as u32,
+        ))
+    }
+
+    /// Marks a tiled window as floating, pinning its current geometry.
+    /// Returns `true` if the window newly became floating.
+    fn float_window(&mut self, id: WindowId) -> bool {
+        if !self.surfaces.contains_key(&id) || self.active_workspace().is_floating(id) {
+            return false;
+        }
+        self.active_workspace_mut().set_floating(id, true);
+        if let Some(rect) = self.window_rect(id) {
+            self.float_geo.insert(id, rect);
+        }
+        true
+    }
+
+    /// Toggles floating state of the focused window.
+    pub fn toggle_floating(&mut self) {
+        let Some(id) = self.active_workspace().get_focused() else {
+            return;
+        };
+        if !self.surfaces.contains_key(&id) {
+            return;
+        }
+        if self.active_workspace_mut().toggle_floating(id) {
+            if let Some(rect) = self.window_rect(id) {
+                self.float_geo.insert(id, rect);
+            }
+        } else {
+            self.float_geo.remove(&id);
+        }
+        self.apply_layout();
+    }
+
+    /// Starts an interactive move. The window is floated first (pinning its
+    /// geometry) and the rest of the workspace re-tiles around the gap.
+    pub fn begin_move_grab(&mut self, id: WindowId, button: u32, cursor: Point<f64, Logical>) {
+        if self.float_window(id) {
+            self.apply_layout();
+        }
+        let Some(pinned) = self.float_geo.get(&id).copied() else {
+            self.grab = PointerGrabState::None;
+            return;
+        };
+        self.active_workspace_mut().focus_window(id);
+        self.update_keyboard_focus();
+        self.grab = PointerGrabState::Move {
+            id,
+            button,
+            dx: cursor.x - pinned.origin.x as f64,
+            dy: cursor.y - pinned.origin.y as f64,
+        };
+    }
+
+    /// Starts an interactive resize from the corner nearest to the cursor.
+    pub fn begin_resize_grab(&mut self, id: WindowId, button: u32, cursor: Point<f64, Logical>) {
+        if self.float_window(id) {
+            self.apply_layout();
+        }
+        let Some(pinned) = self.float_geo.get(&id).copied() else {
+            self.grab = PointerGrabState::None;
+            return;
+        };
+        let corner = nearest_corner(&pinned, cursor.x, cursor.y);
+        self.active_workspace_mut().focus_window(id);
+        self.update_keyboard_focus();
+        self.grab = PointerGrabState::Resize {
+            id,
+            button,
+            corner,
+            start: pinned,
+            cursor_x: cursor.x,
+            cursor_y: cursor.y,
+        };
+    }
+
+    /// Advances the active grab to the cursor position. No-op without a grab.
+    pub fn update_grab_to(&mut self, cursor_x: f64, cursor_y: f64) {
+        match self.grab {
+            PointerGrabState::None => {}
+            PointerGrabState::Move { id, dx, dy, .. } => {
+                let nx = (cursor_x - dx).round() as i32;
+                let ny = (cursor_y - dy).round() as i32;
+                if let Some(window) = self.window_object(id) {
+                    self.space.map_element(window, Point::from((nx, ny)), false);
+                }
+                if let Some(geo) = self.float_geo.get_mut(&id) {
+                    geo.origin.x = nx;
+                    geo.origin.y = ny;
+                }
+            }
+            PointerGrabState::Resize {
+                id,
+                corner,
+                start,
+                cursor_x: sx,
+                cursor_y: sy,
+                ..
+            } => {
+                let dx = (cursor_x - sx).round() as i32;
+                let dy = (cursor_y - sy).round() as i32;
+                let x1 = start.origin.x + start.size.width as i32;
+                let y1 = start.origin.y + start.size.height as i32;
+                let (nx, ny, nw, nh) = match corner {
+                    GrabCorner::TopLeft => {
+                        let nx = (start.origin.x + dx).min(x1 - MIN_FLOAT_W);
+                        let ny = (start.origin.y + dy).min(y1 - MIN_FLOAT_H);
+                        (nx, ny, x1 - nx, y1 - ny)
+                    }
+                    GrabCorner::TopRight => {
+                        let ny = (start.origin.y + dy).min(y1 - MIN_FLOAT_H);
+                        let nw = (start.size.width as i32 + dx).max(MIN_FLOAT_W);
+                        (start.origin.x, ny, nw, y1 - ny)
+                    }
+                    GrabCorner::BottomLeft => {
+                        let nx = (start.origin.x + dx).min(x1 - MIN_FLOAT_W);
+                        let nh = (start.size.height as i32 + dy).max(MIN_FLOAT_H);
+                        (nx, start.origin.y, x1 - nx, nh)
+                    }
+                    GrabCorner::BottomRight => {
+                        let nw = (start.size.width as i32 + dx).max(MIN_FLOAT_W);
+                        let nh = (start.size.height as i32 + dy).max(MIN_FLOAT_H);
+                        (start.origin.x, start.origin.y, nw, nh)
+                    }
+                };
+                if let Some(window) = self.window_object(id) {
+                    self.space.map_element(window, Point::from((nx, ny)), false);
+                }
+                if let Some(surface) = self.surfaces.get(&id).cloned() {
+                    surface.with_pending_state(|s| {
+                        s.size = Some((nw, nh).into());
+                    });
+                    surface.send_configure();
+                }
+                self.float_geo
+                    .insert(id, CoreRect::new(nx, ny, nw as u32, nh as u32));
+            }
+        }
+    }
+
+    pub fn end_grab(&mut self) {
+        self.grab = PointerGrabState::None;
+    }
+
     pub fn spawn(&self, cmd: &str) {
         let _ = std::process::Command::new("sh")
             .arg("-c")
@@ -344,9 +579,27 @@ impl AerowmState {
             if let Some(surface) = self.surfaces.get(&id).cloned() {
                 let window = by_id
                     .remove(&id)
-                    .unwrap_or_else(|| Window::new_wayland_window(surface));
-                // Re-map; real position comes from apply_layout right after.
-                self.space.map_element(window, (0, 0), false);
+                    .unwrap_or_else(|| Window::new_wayland_window(surface.clone()));
+                if self.active_workspace().is_floating(id) {
+                    // Floating windows keep their pinned user geometry.
+                    let loc = self
+                        .float_geo
+                        .get(&id)
+                        .map(|r| Point::from((r.origin.x, r.origin.y)))
+                        .unwrap_or(Point::from((0, 0)));
+                    if let Some(pinned) = self.float_geo.get(&id) {
+                        surface.with_pending_state(|s| {
+                            s.size = Some(
+                                (pinned.size.width as i32, pinned.size.height as i32).into(),
+                            );
+                        });
+                        surface.send_configure();
+                    }
+                    self.space.map_element(window, loc, false);
+                } else {
+                    // Re-map; real position comes from apply_layout right after.
+                    self.space.map_element(window, (0, 0), false);
+                }
             }
         }
         self.apply_layout();
@@ -376,6 +629,22 @@ impl AerowmState {
             self.active_ws - 1
         };
         self.switch_workspace(prev);
+    }
+}
+
+/// Corner of a rectangle nearest to the cursor position.
+fn nearest_corner(rect: &CoreRect, cursor_x: f64, cursor_y: f64) -> GrabCorner {
+    let x0 = rect.origin.x as f64;
+    let y0 = rect.origin.y as f64;
+    let x1 = x0 + rect.size.width as f64;
+    let y1 = y0 + rect.size.height as f64;
+    let left = (cursor_x - x0).abs() < (cursor_x - x1).abs();
+    let top = (cursor_y - y0).abs() < (cursor_y - y1).abs();
+    match (top, left) {
+        (true, true) => GrabCorner::TopLeft,
+        (true, false) => GrabCorner::TopRight,
+        (false, true) => GrabCorner::BottomLeft,
+        (false, false) => GrabCorner::BottomRight,
     }
 }
 

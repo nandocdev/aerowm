@@ -1,14 +1,20 @@
+use std::collections::HashSet;
+
 use crate::id::WindowId;
 use crate::geometry::Rect;
 use crate::layout::Layout;
 use crate::layouts::MonadTall;
 
 /// Container for managing windows and focus in a virtual workspace.
+///
+/// Windows marked as *floating* keep a user-controlled geometry (dragged
+/// and resized with the pointer) and are excluded from the tiling layout.
 pub struct Workspace {
     pub name: String,
     windows: Vec<WindowId>,
     focused_index: Option<usize>,
     layout: Box<dyn Layout>,
+    floating: HashSet<WindowId>,
 }
 
 impl Workspace {
@@ -18,6 +24,7 @@ impl Workspace {
             windows: Vec::new(),
             focused_index: None,
             layout: Box::new(MonadTall::default()),
+            floating: HashSet::new(),
         }
     }
 
@@ -34,6 +41,7 @@ impl Workspace {
 
     /// Removes a window, gracefully adjusting the focus.
     pub fn remove_window(&mut self, id: WindowId) {
+        self.floating.remove(&id);
         if let Some(pos) = self.windows.iter().position(|&w| w == id) {
             self.windows.remove(pos);
             if self.windows.is_empty() {
@@ -93,10 +101,50 @@ impl Workspace {
         &self.windows
     }
 
-    /// Applies the layout algorithm mapping each WindowId to its calculated Rect.
+    /// Marks a window as floating (user geometry) or tiled. No-op for unknown ids.
+    /// Returns the new floating state (`false` for unknown ids).
+    pub fn set_floating(&mut self, id: WindowId, floating: bool) -> bool {
+        if !self.windows.contains(&id) {
+            return false;
+        }
+        if floating {
+            self.floating.insert(id);
+        } else {
+            self.floating.remove(&id);
+        }
+        floating
+    }
+
+    /// Toggles the floating state. Returns the new state (`false` for unknown ids).
+    pub fn toggle_floating(&mut self, id: WindowId) -> bool {
+        if !self.windows.contains(&id) {
+            return false;
+        }
+        if self.floating.contains(&id) {
+            self.floating.remove(&id);
+            false
+        } else {
+            self.floating.insert(id);
+            true
+        }
+    }
+
+    pub fn is_floating(&self, id: WindowId) -> bool {
+        self.floating.contains(&id)
+    }
+
+    /// Applies the layout algorithm mapping each *tiled* WindowId to its
+    /// calculated Rect. Floating windows are excluded — the compositor keeps
+    /// their user-controlled geometry.
     pub fn apply_layout(&self, layout: &dyn Layout, area: Rect) -> Vec<(WindowId, Rect)> {
-        let rects = layout.apply(area, self.windows.len());
-        self.windows.iter().copied().zip(rects.into_iter()).collect()
+        let tiled: Vec<WindowId> = self
+            .windows
+            .iter()
+            .copied()
+            .filter(|id| !self.floating.contains(id))
+            .collect();
+        let rects = layout.apply(area, tiled.len());
+        tiled.into_iter().zip(rects).collect()
     }
 }
 
@@ -144,6 +192,43 @@ mod tests {
         
         ws.focus_prev(); // wrap back to w3
         assert_eq!(ws.get_focused(), Some(w3));
+    }
+
+    #[test]
+    fn test_floating_excluded_from_layout() {
+        let mut ws = Workspace::new("1");
+        let w1 = WindowId::new();
+        let w2 = WindowId::new();
+
+        ws.add_window(w1);
+        ws.add_window(w2);
+        assert!(!ws.is_floating(w1));
+
+        assert!(ws.toggle_floating(w1));
+        assert!(ws.is_floating(w1));
+
+        let area = Rect::new(0, 0, 1920, 1080);
+        let layout = MonadTall::default();
+        let placed = ws.apply_layout(&layout, area);
+        // Only the tiled window is placed, floating keeps user geometry.
+        assert_eq!(placed.len(), 1);
+        assert_eq!(placed[0].0, w2);
+
+        // Back to tiled: both placed again.
+        assert!(!ws.toggle_floating(w1));
+        let placed = ws.apply_layout(&layout, area);
+        assert_eq!(placed.len(), 2);
+
+        // Unknown ids are inert.
+        let ghost = WindowId::new();
+        assert!(!ws.toggle_floating(ghost));
+        assert!(!ws.set_floating(ghost, true));
+        assert!(!ws.is_floating(ghost));
+
+        // Removal clears floating state.
+        ws.set_floating(w1, true);
+        ws.remove_window(w1);
+        assert!(!ws.is_floating(w1));
     }
 
     #[test]

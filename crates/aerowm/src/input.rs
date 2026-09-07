@@ -12,6 +12,27 @@ use tracing::{debug, info};
 
 use crate::state::AerowmState;
 
+/// Linux input button codes (shared by the winit and libinput backends).
+const BTN_LEFT: u32 = 0x110;
+const BTN_RIGHT: u32 = 0x111;
+
+/// Tiled window under the cursor: its workspace id plus toplevel surface.
+fn window_under_cursor(
+    state: &AerowmState,
+) -> Option<(aerowm_core::id::WindowId, smithay::wayland::shell::xdg::ToplevelSurface)> {
+    let pos = state.pointer_location;
+    let toplevel = state
+        .space
+        .element_under(pos)
+        .and_then(|(w, _)| w.toplevel().cloned())?;
+    let (id, _) = state
+        .surfaces
+        .iter()
+        .find(|(_, s)| **s == toplevel)
+        .map(|(id, _)| (*id, ()))?;
+    Some((id, toplevel))
+}
+
 /// Builds the canonical combo string, e.g. `"Super+Return"`, `"Super+Shift+q"`.
 /// Must match the Luau `aerowm.mods` values: Super / Alt / Control / Shift.
 pub fn build_combo(mods: &ModifiersState, keysym_name: &str) -> String {
@@ -69,6 +90,11 @@ pub fn dispatch_keybinding(state: &mut AerowmState, combo: &str) -> bool {
         }
         "Super+m" => {
             state.swap_master();
+            true
+        }
+        "Super+Shift+space" => {
+            info!("keybind: toggle floating");
+            state.toggle_floating();
             true
         }
         "Super+h" | "Super+Left" | "Super+comma" => {
@@ -201,8 +227,28 @@ fn layer_under_cursor(state: &AerowmState) -> bool {
 }
 
 /// Moves the pointer to an absolute logical position (shared path).
+///
+/// While a move/resize grab is active the motion drives the grab and is
+/// consumed. Otherwise focus follows the mouse (layers excluded) and the
+/// motion is forwarded to the newly focused client.
 pub fn pointer_motion_to(state: &mut AerowmState, pos: Point<f64, Logical>, time: u32) {
     state.pointer_location = pos;
+
+    // Active grab: drive it, consume the motion.
+    if state.grab.is_active() {
+        state.update_grab_to(pos.x, pos.y);
+        return;
+    }
+
+    // Focus-follows-mouse: focus the window under the cursor on hover.
+    // Layers keep their own input; redundant updates are skipped to avoid
+    // keyboard focus churn and IPC spam.
+    if !layer_under_cursor(state)
+        && let Some((id, toplevel)) = window_under_cursor(state)
+        && state.active_workspace().get_focused() != Some(id)
+    {
+        state.focus_toplevel(&toplevel);
+    }
 
     let serial = SERIAL_COUNTER.next_serial();
     let Some(pointer) = state.seat.get_pointer() else {
@@ -241,27 +287,73 @@ pub fn pointer_motion_relative(state: &mut AerowmState, delta: Point<f64, Logica
     pointer_motion_to(state, pos, time);
 }
 
-/// Shared button path: click-to-focus on press, then forward to the client.
+/// Shared button path.
+///
+/// Press semantics:
+/// - `Super+Left-drag` on a window starts an interactive move (the window
+///   becomes floating), `Super+Right-drag` an interactive resize. The grab
+///   consumes the press; motion and the grabbing-button release are consumed
+///   too, keeping client press/release pairing intact.
+/// - Plain press on a tiled window focuses it on click (layers excluded).
+/// - Extra buttons pressed mid-grab pass through untouched.
 pub fn pointer_button_event(
     state: &mut AerowmState,
     button: u32,
     btn_state: ButtonState,
     time: u32,
 ) {
-    // Click-to-focus: focus the window under the cursor on press, unless
-    // a layer-shell surface (bar, launcher) is on top — layers keep their
-    // own input without stealing tiling focus.
-    if btn_state == ButtonState::Pressed && !layer_under_cursor(state) {
-        let pos = state.pointer_location;
-        let toplevel = state
-            .space
-            .element_under(pos)
-            .and_then(|(w, _)| w.toplevel().cloned());
-        if let Some(toplevel) = toplevel {
+    let pos = state.pointer_location;
+
+    if btn_state == ButtonState::Pressed {
+        // Extra buttons during a grab pass through; the grab owns the rest.
+        if state.grab.is_active() {
+            forward_button(state, button, btn_state, time);
+            return;
+        }
+
+        let super_held = state
+            .seat
+            .get_keyboard()
+            .map(|k| k.modifier_state().logo)
+            .unwrap_or(false);
+
+        let target = if layer_under_cursor(state) {
+            None
+        } else {
+            window_under_cursor(state)
+        };
+        if let Some((id, toplevel)) = target {
+            if super_held && button == BTN_LEFT {
+                state.begin_move_grab(id, button, pos);
+                return;
+            }
+            if super_held && button == BTN_RIGHT {
+                state.begin_resize_grab(id, button, pos);
+                return;
+            }
+            // Click-to-focus: focus the window under the cursor on press.
             state.focus_toplevel(&toplevel);
         }
+
+        forward_button(state, button, btn_state, time);
+        return;
     }
 
+    // Release: the grabbing button ends the grab and is consumed; any other
+    // button is forwarded normally.
+    if state.grab.is_active() {
+        if state.grab.button() == Some(button) {
+            state.end_grab();
+            return;
+        }
+        forward_button(state, button, btn_state, time);
+        return;
+    }
+
+    forward_button(state, button, btn_state, time);
+}
+
+fn forward_button(state: &mut AerowmState, button: u32, btn_state: ButtonState, time: u32) {
     let serial = SERIAL_COUNTER.next_serial();
     let Some(pointer) = state.seat.get_pointer() else {
         return;

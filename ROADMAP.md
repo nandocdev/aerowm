@@ -106,9 +106,9 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] Implementar el protocolo `wlr-layer-shell` en el compositor.
   * [x] Configurar la deducción del área de trabajo (márgenes exclusivos) ocupada por la barra antes de calcular el tiling de las ventanas.
 
-* [ ] **Puntero y Foco por Ratón**
-  * [ ] Implementar manipulación de ventanas con cursor: arrastre y cambio de tamaño interactivo para ventanas flotantes.
-  * [ ] Integrar lógica de foco: foco al pasar el puntero (*focus-follows-mouse*) con activación de ventana al hacer clic.
+* [x] **Puntero y Foco por Ratón**
+  * [x] Implementar manipulación de ventanas con cursor: arrastre y cambio de tamaño interactivo para ventanas flotantes.
+  * [x] Integrar lógica de foco: foco al pasar el puntero (*focus-follows-mouse*) con activación de ventana al hacer clic.
 
 ---
 
