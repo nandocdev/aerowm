@@ -108,8 +108,14 @@ pub struct AerowmState {
     pub compositor_state: CompositorState,
     pub shm_state: ShmState,
     pub xdg_shell_state: XdgShellState,
+    // Protocol states below are never read directly: Smithay's delegate
+    // macros dispatch through the globals on the DisplayHandle. The fields
+    // must still be retained — dropping them would unregister the globals.
+    #[allow(dead_code)]
     pub xdg_decoration_state: XdgDecorationState,
+    #[allow(dead_code)]
     pub fractional_scale_state: FractionalScaleManagerState,
+    #[allow(dead_code)]
     pub viewporter_state: ViewporterState,
     
     pub layer_shell_state: WlrLayerShellState,
