@@ -11,6 +11,10 @@ pub enum IpcCommand {
     KillWindow,
     /// Stop the compositor
     Exit,
+    /// Hot restart: dump `session.json`, then re-exec the compositor
+    /// inheriting the Wayland listening socket. Layout state is restored;
+    /// already-connected clients are reaped by the exec itself.
+    Restart,
     /// Subscribe to live events stream (Pub/Sub)
     Subscribe,
     /// Query a full state snapshot (workspaces, focus). Used by `aerowm-bar`.

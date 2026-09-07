@@ -4,6 +4,10 @@ use crate::layout::Layout;
 pub struct Max;
 
 impl Layout for Max {
+    fn name(&self) -> &'static str {
+        "max"
+    }
+
     fn apply(&self, area: Rect, num_windows: usize) -> Vec<Rect> {
         vec![area; num_windows]
     }

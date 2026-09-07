@@ -9,6 +9,7 @@ aerowm-core = { version = "0.1.0", path = "../aerowm-core" }
 aerowm-ipc = { version = "0.1.0", path = "../aerowm-ipc" }
 aerowm-lua = { version = "0.1.0", path = "../aerowm-lua" }
 calloop = "0.14.4"
+rustix = "1"
 serde_json = "1.0.151"
 smithay = { version = "0.7.0", features = ["desktop", "wayland_frontend", "renderer_gl", "backend_winit", "backend_drm", "backend_gbm", "backend_egl", "backend_libinput", "backend_session", "backend_session_libseat", "backend_udev", "use_system_lib"] }
 xkbcommon = "0.8"

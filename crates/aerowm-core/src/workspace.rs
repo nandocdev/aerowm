@@ -2,8 +2,7 @@ use std::collections::HashSet;
 
 use crate::id::WindowId;
 use crate::geometry::Rect;
-use crate::layout::Layout;
-use crate::layouts::MonadTall;
+use crate::layout::{Layout, LayoutSpec};
 
 /// Container for managing windows and focus in a virtual workspace.
 ///
@@ -14,16 +13,22 @@ pub struct Workspace {
     windows: Vec<WindowId>,
     focused_index: Option<usize>,
     layout: Box<dyn Layout>,
+    /// Serializable description of `layout` (name + parameters). Kept in
+    /// sync by [`Workspace::set_layout`]; any future runtime tuning of
+    /// layout parameters must update it too so sessions round-trip.
+    spec: LayoutSpec,
     floating: HashSet<WindowId>,
 }
 
 impl Workspace {
     pub fn new(name: impl Into<String>) -> Self {
+        let spec = LayoutSpec::default();
         Self {
             name: name.into(),
             windows: Vec::new(),
             focused_index: None,
-            layout: Box::new(MonadTall::default()),
+            layout: spec.instantiate(),
+            spec,
             floating: HashSet::new(),
         }
     }
@@ -33,10 +38,38 @@ impl Workspace {
         self.layout.as_ref()
     }
 
+    /// Serializable description of the current layout (name + parameters).
+    pub fn layout_spec(&self) -> LayoutSpec {
+        self.spec.clone()
+    }
+
+    /// Replaces the layout algorithm from a serializable spec.
+    pub fn set_layout(&mut self, spec: LayoutSpec) {
+        self.layout = spec.instantiate();
+        self.spec = spec;
+    }
+
     /// Adds a window to the workspace and focuses it.
     pub fn add_window(&mut self, id: WindowId) {
         self.windows.push(id);
         self.focused_index = Some(self.windows.len() - 1);
+    }
+
+    /// Inserts a window at a stack position without touching focus.
+    /// Used by session restore to rebuild recorded stacking order.
+    /// Unknown positions clamp into range; duplicates are ignored.
+    pub fn insert_window(&mut self, id: WindowId, position: usize) {
+        if self.windows.contains(&id) {
+            return;
+        }
+        let pos = position.min(self.windows.len());
+        self.windows.insert(pos, id);
+        if let Some(focused) = self.focused_index {
+            // Keep focus pointing at the same window after the shift.
+            if pos <= focused {
+                self.focused_index = Some(focused + 1);
+            }
+        }
     }
 
     /// Removes a window, gracefully adjusting the focus.
@@ -151,6 +184,7 @@ impl Workspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::layouts::MonadTall;
 
     #[test]
     fn test_add_remove_and_focus() {

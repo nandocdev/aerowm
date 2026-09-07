@@ -3,8 +3,10 @@ mod backend;
 mod input;
 mod ipc;
 mod handlers;
+mod session;
+mod wayland_socket;
 
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use calloop::EventLoop;
 use wayland_server::Display;
 use aerowm_lua::ScriptEngine;
@@ -20,13 +22,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Initializing Luau Engine...");
     let engine = ScriptEngine::new().map_err(|e| format!("Failed to init ScriptEngine: {}", e))?;
-    
+
     if let Err(err) = engine.load_config_string("aerowm.log('Luau loaded successfully!')") {
         warn!("Failed to load config: {}", err);
     }
     let _ = engine.emit_hook("startup");
 
     let mut state = AerowmState::new(&display_handle, engine);
+
+    // Wayland listening socket (owned by us so its FD can be handed over
+    // across an in-place restart) + client accept loop.
+    match wayland_socket::setup_wayland_socket(event_loop.handle(), &display_handle) {
+        Ok(info) => {
+            state.wl_socket = Some(info);
+        }
+        Err(e) => {
+            // Without a socket no Wayland client can ever connect; the
+            // compositor is useless, so fail fast with a clear message.
+            error!("Wayland socket setup failed: {e}");
+            return Err(e);
+        }
+    }
+
+    // In-place restart child: rebuild workspace scaffolding and queue
+    // window placements for reconnecting clients.
+    if std::env::var(session::RESTARTED_ENV).as_deref() == Ok("1") {
+        match session::restore_session(&mut state) {
+            Ok(n) => info!("restart handover complete ({n} windows to place)"),
+            Err(e) => warn!("session restore failed ({e}); starting fresh"),
+        }
+    }
 
     // Initialize the IPC Unix Socket directly into calloop
     ipc::init_ipc_socket(event_loop.handle())?;
@@ -67,7 +92,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The main loop
     while state.is_running {
         event_loop.dispatch(None, &mut state)?;
+        display.dispatch_clients(&mut state)?;
         display.flush_clients()?;
+    }
+
+    // Hot restart: dump the session, then re-exec over this process image
+    // inheriting the Wayland listening socket.
+    if state.restart_requested {
+        match state.wl_socket {
+            Some(ref info) => match session::dump_session(&state) {
+                Ok(path) => {
+                    info!(
+                        "restarting on Wayland socket {} (fd={})",
+                        info.name, info.fd
+                    );
+                    if let Err(e) = session::exec_restart(info.fd, &path) {
+                        error!("hot restart failed: {e}");
+                    }
+                }
+                Err(e) => error!("hot restart aborted, session dump failed: {e}"),
+            },
+            None => error!("hot restart aborted: no Wayland socket to hand over"),
+        }
     }
 
     Ok(())

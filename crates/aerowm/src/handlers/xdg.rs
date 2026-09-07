@@ -15,6 +15,8 @@ impl XdgShellHandler for AerowmState {
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let id = aerowm_core::id::WindowId::new();
+        let prev_focus = self.active_workspace().get_focused();
+        let app = crate::session::app_id_of_toplevel(&surface);
 
         // Register in the domain layout
         self.active_workspace_mut().add_window(id);
@@ -25,6 +27,11 @@ impl XdgShellHandler for AerowmState {
 
         // Add to space at (0, 0) - layout will be applied later
         self.space.map_element(window, (0, 0), true);
+
+        // Restored session placement (no-op unless a pending entry matches).
+        if let Some(app) = app {
+            self.apply_pending_placement(id, &app, prev_focus);
+        }
 
         // Apply layout to position all windows
         self.apply_layout();

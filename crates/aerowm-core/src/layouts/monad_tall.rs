@@ -16,6 +16,10 @@ impl Default for MonadTall {
 }
 
 impl Layout for MonadTall {
+    fn name(&self) -> &'static str {
+        "monad_tall"
+    }
+
     fn apply(&self, area: Rect, num_windows: usize) -> Vec<Rect> {
         if num_windows == 0 {
             return vec![];

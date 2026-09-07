@@ -61,6 +61,8 @@ impl XwmHandler for AerowmState {
     }
 
     fn map_window_request(&mut self, _xwm: XwmId, window: X11Surface) {
+        let prev_focus = self.active_workspace().get_focused();
+        let app = crate::session::app_id_of_x11(&window);
         match id_for_x11(self, &window) {
             Some(id) => {
                 // Re-map of a known surface (e.g. after unmap): restore
@@ -81,6 +83,12 @@ impl XwmHandler for AerowmState {
         if window_for_xid(self, window.window_id()).is_none() {
             let w = Window::new_x11_window(window.clone());
             self.space.map_element(w, (0, 0), true);
+        }
+        // Restored session placement (no-op unless a pending entry matches).
+        if let Some(app) = app {
+            if let Some(id) = id_for_x11(self, &window) {
+                self.apply_pending_placement(id, &app, prev_focus);
+            }
         }
         self.apply_layout();
         self.update_keyboard_focus();

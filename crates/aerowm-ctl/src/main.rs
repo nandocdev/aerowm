@@ -27,6 +27,9 @@ enum Commands {
     Kill,
     /// Exit the compositor
     Exit,
+    /// Hot-restart the compositor in place (keeps the Wayland socket
+    /// and restores workspaces/layouts from session.json)
+    Restart,
     /// Subscribe to live events (Pub/Sub)
     Subscribe,
 }
@@ -38,6 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Reload => IpcCommand::ReloadConfig,
         Commands::Kill => IpcCommand::KillWindow,
         Commands::Exit => IpcCommand::Exit,
+        Commands::Restart => IpcCommand::Restart,
         Commands::Subscribe => IpcCommand::Subscribe,
         Commands::Workspace { next, prev, switch } => {
             let action = if next {

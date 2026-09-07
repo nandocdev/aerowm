@@ -4,6 +4,10 @@ use crate::layout::Layout;
 pub struct Columns;
 
 impl Layout for Columns {
+    fn name(&self) -> &'static str {
+        "columns"
+    }
+
     fn apply(&self, area: Rect, num_windows: usize) -> Vec<Rect> {
         if num_windows == 0 {
             return vec![];

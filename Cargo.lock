@@ -10,6 +10,7 @@ dependencies = [
  "aerowm-ipc",
  "aerowm-lua",
  "calloop 0.14.4",
+ "rustix 1.1.4",
  "serde_json",
  "smithay",
  "tracing",
@@ -38,6 +39,10 @@ dependencies = [
 [[package]]
 name = "aerowm-core"
 version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "aerowm-ctl"

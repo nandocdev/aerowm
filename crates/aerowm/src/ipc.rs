@@ -63,6 +63,11 @@ pub fn init_ipc_socket(
                                     info!("IPC: Exit requested");
                                     state.is_running = false;
                                 }
+                                IpcCommand::Restart => {
+                                    info!("IPC: Restart requested");
+                                    state.restart_requested = true;
+                                    state.is_running = false;
+                                }
                                 IpcCommand::KillWindow => {
                                     info!("IPC: KillWindow requested");
                                     state.kill_active();
