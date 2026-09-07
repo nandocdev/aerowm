@@ -37,6 +37,12 @@ impl CompositorHandler for AerowmState {
         if let Some(state) = client.get_data::<ClientState>() {
             &state.compositor_state
         } else {
+            // The internal XWayland client carries smithay's own client
+            // data instead of ours; serve its compositor state directly.
+            #[cfg(feature = "xwayland")]
+            if let Some(xstate) = client.get_data::<smithay::xwayland::XWaylandClientData>() {
+                return &xstate.compositor_state;
+            }
             // Fallback for cases where ClientData isn't fully set up yet
             panic!("ClientState not attached to Client")
         }

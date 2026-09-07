@@ -54,6 +54,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         backend::winit::init_winit(&mut event_loop, &mut display, &mut state)?;
     }
 
+    // Legacy X11 support is opt-in (`--features xwayland`). When enabled,
+    // boot the XWayland server; any failure (e.g. missing binary) only
+    // disables X11 apps, never the Wayland session.
+    #[cfg(feature = "xwayland")]
+    if let Err(e) = state.init_xwayland(&display_handle, event_loop.handle()) {
+        warn!("XWayland disabled: {e}");
+    }
+
     info!("AeroWM initialization complete. Entering event loop.");
 
     // The main loop

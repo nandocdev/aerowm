@@ -116,10 +116,10 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 
 **Objetivo:** Maximizar la fluidez visual, garantizar hot reload atómico, añadir compatibilidad legacy y empaquetar para distribuciones Linux.
 
-* [ ] **Soporte Opcional para Aplicaciones Legacy (`XWayland`)**
-  * [ ] Configurar soporte tras un flag de compilación de Cargo (`--features xwayland`) para ahorrar memoria en instalaciones puras Wayland.
-  * [ ] Inicializar el socket y contexto de XWayland dentro del ciclo de vida del compositor.
-  * [ ] Integrar ventanas X11 convencionales dentro del árbol de distribución de Smithay y del core de layouts.
+* [x] **Soporte Opcional para Aplicaciones Legacy (`XWayland`)**
+  * [x] Configurar soporte tras un flag de compilación de Cargo (`--features xwayland`) para ahorrar memoria en instalaciones puras Wayland.
+  * [x] Inicializar el socket y contexto de XWayland dentro del ciclo de vida del compositor.
+  * [x] Integrar ventanas X11 convencionales dentro del árbol de distribución de Smithay y del core de layouts.
 
 * [ ] **Persistencia de Estado y Reinicio en Caliente**
   * [ ] Serializar estado del WM (workspaces, layouts, ventanas) en `session.json` al solicitar un reinicio.
@@ -133,10 +133,8 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
 * [ ] **Protocolos Extendidos de Wayland**
   * [ ] Implementar `xdg-decoration-v1`, `fractional-scale-v1` y `viewporter` para escalado HiDPI y decoraciones SSD/CSD.
   * [ ] Implementar `ext-session-lock-v1` (bloqueo de pantalla) y `wlr-screencopy-v1` (capturas y streaming).
-
-* [ ] **Optimización de Memoria y Renderizado**
-  * [ ] Auditar asignaciones de memoria en reposo con herramientas de perfilado (`heaptrack` / `valgrind`) para cumplir el objetivo $\le 20 \text{ MB}$.
-  * [ ] Aplicar renderizado por regiones dañadas (*damaged-based rendering*) para pintar únicamente los rectángulos de la pantalla que sufrieron cambios.
++* [ ] **Optimización de Memoria y Renderizado**
+5++  * [ ] Aplicar renderizado por regiones dañadas (*damaged-based rendering*) para pintar únicamente los rectángulos de la pantalla que sufrieron cambios.
 
 * [ ] **Empaquetado y Distribución**
   * [ ] Crear el descriptor de sesión de escritorio `assets/aerowm.desktop` para compatibilidad con display managers (GDM, SDDM).

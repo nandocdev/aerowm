@@ -16,21 +16,12 @@ use crate::state::AerowmState;
 const BTN_LEFT: u32 = 0x110;
 const BTN_RIGHT: u32 = 0x111;
 
-/// Tiled window under the cursor: its workspace id plus toplevel surface.
-fn window_under_cursor(
-    state: &AerowmState,
-) -> Option<(aerowm_core::id::WindowId, smithay::wayland::shell::xdg::ToplevelSurface)> {
+/// Managed window (Wayland or X11) under the cursor: its workspace id.
+/// Unmanaged override-redirect windows yield `None` (no focus steal).
+fn window_under_cursor(state: &AerowmState) -> Option<aerowm_core::id::WindowId> {
     let pos = state.pointer_location;
-    let toplevel = state
-        .space
-        .element_under(pos)
-        .and_then(|(w, _)| w.toplevel().cloned())?;
-    let (id, _) = state
-        .surfaces
-        .iter()
-        .find(|(_, s)| **s == toplevel)
-        .map(|(id, _)| (*id, ()))?;
-    Some((id, toplevel))
+    let (window, _) = state.space.element_under(pos)?;
+    state.id_of_window(window)
 }
 
 /// Builds the canonical combo string, e.g. `"Super+Return"`, `"Super+Shift+q"`.
@@ -212,12 +203,15 @@ fn pointer_focus_under(
     state: &AerowmState,
     pos: Point<f64, Logical>,
 ) -> Option<(WlSurface, Point<f64, Logical>)> {
+    use smithay::wayland::seat::WaylandFocus;
     // Layers first so bars and launchers receive pointer input.
     if let Some(surface) = layer_focus_under(state, pos) {
         return Some((surface, pos));
     }
+    // `wl_surface()` covers both Wayland toplevels and X11 windows (once
+    // the XWayland side has committed a buffer).
     let (window, _) = state.space.element_under(pos)?;
-    let surface = window.toplevel()?.wl_surface().clone();
+    let surface = window.wl_surface()?.into_owned();
     Some((surface, pos))
 }
 
@@ -244,10 +238,10 @@ pub fn pointer_motion_to(state: &mut AerowmState, pos: Point<f64, Logical>, time
     // Layers keep their own input; redundant updates are skipped to avoid
     // keyboard focus churn and IPC spam.
     if !layer_under_cursor(state)
-        && let Some((id, toplevel)) = window_under_cursor(state)
+        && let Some(id) = window_under_cursor(state)
         && state.active_workspace().get_focused() != Some(id)
     {
-        state.focus_toplevel(&toplevel);
+        state.focus_window_id(id);
     }
 
     let serial = SERIAL_COUNTER.next_serial();
@@ -322,7 +316,7 @@ pub fn pointer_button_event(
         } else {
             window_under_cursor(state)
         };
-        if let Some((id, toplevel)) = target {
+        if let Some(id) = target {
             if super_held && button == BTN_LEFT {
                 state.begin_move_grab(id, button, pos);
                 return;
@@ -332,7 +326,7 @@ pub fn pointer_button_event(
                 return;
             }
             // Click-to-focus: focus the window under the cursor on press.
-            state.focus_toplevel(&toplevel);
+            state.focus_window_id(id);
         }
 
         forward_button(state, button, btn_state, time);

@@ -8,6 +8,12 @@ use smithay::wayland::compositor::CompositorState;
 use smithay::wayland::shm::ShmState;
 use smithay::wayland::shell::wlr_layer::WlrLayerShellState;
 use smithay::wayland::shell::xdg::{XdgShellState, ToplevelSurface};
+#[cfg(feature = "xwayland")]
+use smithay::wayland::xwayland_shell::XWaylandShellState;
+#[cfg(feature = "xwayland")]
+use smithay::xwayland::{X11Surface, X11Wm, XWayland, XWaylandEvent};
+#[cfg(feature = "xwayland")]
+use calloop::LoopHandle;
 use smithay::input::{Seat, SeatState, keyboard::XkbConfig};
 use smithay::desktop::space::Space;
 use smithay::desktop::Window;
@@ -99,11 +105,26 @@ pub struct AerowmState {
     pub layer_shell_state: WlrLayerShellState,
     pub seat_state: SeatState<Self>,
     pub seat: Seat<Self>,
+    #[cfg(feature = "xwayland")]
+    pub xwayland_shell: XWaylandShellState,
     pub pointer_location: Point<f64, Logical>,
 
     pub workspaces: Vec<Workspace>,
     pub active_ws: usize,
     pub surfaces: HashMap<WindowId, ToplevelSurface>,
+    /// Managed X11 windows (XWayland), keyed like Wayland ones.
+    #[cfg(feature = "xwayland")]
+    pub x11_surfaces: HashMap<WindowId, X11Surface>,
+    /// Unmanaged override-redirect X11 windows (menus, tooltips): visible
+    /// in the space but outside workspaces, focus and layouts.
+    #[cfg(feature = "xwayland")]
+    pub override_redirect: Vec<X11Surface>,
+    /// XWayland window manager instance, once the X server is ready.
+    #[cfg(feature = "xwayland")]
+    pub xwm: Option<X11Wm>,
+    /// Event-loop handle kept for XWayland startup on `Ready`.
+    #[cfg(feature = "xwayland")]
+    pub loop_handle: Option<LoopHandle<'static, Self>>,
 
     /// Active pointer move/resize grab, if any.
     pub grab: PointerGrabState,
@@ -142,10 +163,20 @@ impl AerowmState {
             layer_shell_state: WlrLayerShellState::new::<Self>(display_handle),
             seat_state,
             seat,
+            #[cfg(feature = "xwayland")]
+            xwayland_shell: XWaylandShellState::new::<Self>(display_handle),
             pointer_location: Point::from((0.0, 0.0)),
             workspaces,
             active_ws: 0,
             surfaces: HashMap::new(),
+            #[cfg(feature = "xwayland")]
+            x11_surfaces: HashMap::new(),
+            #[cfg(feature = "xwayland")]
+            override_redirect: Vec::new(),
+            #[cfg(feature = "xwayland")]
+            xwm: None,
+            #[cfg(feature = "xwayland")]
+            loop_handle: None,
             grab: PointerGrabState::None,
             float_geo: HashMap::new(),
             space: Space::default(),
@@ -254,6 +285,21 @@ impl AerowmState {
                     windows_to_move.push((window.clone(), location));
                 }
             }
+            #[cfg(feature = "xwayland")]
+            if let Some(x11) = self.x11_surfaces.get(&window_id).cloned() {
+                // X11 windows get their tile geometry through configure.
+                let geo = smithay::utils::Rectangle::new(
+                    (rect.origin.x, rect.origin.y).into(),
+                    (rect.size.width as i32, rect.size.height as i32).into(),
+                );
+                if let Err(e) = x11.configure(Some(geo)) {
+                    tracing::warn!("failed to configure X11 window: {e:?}");
+                }
+                if let Some(window) = self.window_object(window_id) {
+                    let location = Point::from((rect.origin.x, rect.origin.y));
+                    windows_to_move.push((window, location));
+                }
+            }
         }
 
         for (window, location) in windows_to_move {
@@ -265,10 +311,7 @@ impl AerowmState {
     pub fn cleanup_dead_windows(&mut self) {
         let dead_window_ids: Vec<_> = self.space.elements()
             .filter(|w| !w.alive())
-            .filter_map(|w| w.toplevel().cloned())
-            .filter_map(|surface| {
-                self.surfaces.iter().find(|(_, s)| **s == surface).map(|(id, _)| *id)
-            })
+            .filter_map(|w| self.id_of_window(w))
             .collect();
 
         for id in dead_window_ids {
@@ -291,6 +334,11 @@ impl AerowmState {
         for w in dead_windows {
             self.space.unmap_elem(&w);
         }
+
+        // Prune tracked override-redirect windows that died without an
+        // explicit destroy notification.
+        #[cfg(feature = "xwayland")]
+        self.override_redirect.retain(|s| s.alive());
     }
 
     /// Returns the wl_surface of the currently focused window, if any.
@@ -334,21 +382,21 @@ impl AerowmState {
             return;
         }
 
-        let focused = self.focused_surface();
+        let focused_id = self.active_workspace().get_focused();
+        let focused = self.focused_wl_surface();
 
-        // Activate the focused window, deactivate the rest.
+        // Activate the focused window, deactivate the rest. Identity runs
+        // through workspace ids so Wayland and X11 windows share the path.
         for window in self.space.elements() {
-            let is_focused = focused
-                .as_ref()
-                .map(|s| window.toplevel() == Some(s))
+            let is_focused = focused_id
+                .map(|fid| Some(fid) == self.id_of_window(window))
                 .unwrap_or(false);
             window.set_activated(is_focused);
         }
 
         let seat = self.seat.clone();
         if let Some(keyboard) = seat.get_keyboard() {
-            let focus = focused.map(|s| s.wl_surface().clone());
-            keyboard.set_focus(self, focus, serial);
+            keyboard.set_focus(self, focused, serial);
         }
 
         if let Some(id) = self.active_workspace().get_focused() {
@@ -356,19 +404,110 @@ impl AerowmState {
         }
     }
 
-    /// Focuses the window containing the given toplevel surface.
-    pub fn focus_toplevel(&mut self, surface: &ToplevelSurface) {
-        if let Some((id, _)) = self.surfaces.iter().find(|(_, s)| *s == surface).map(|(id, _)| (*id, ())) {
-            self.active_workspace_mut().focus_window(id);
-            self.update_keyboard_focus();
+    /// Focuses a window by id (Wayland or X11). No-op for unknown ids.
+    pub fn focus_window_id(&mut self, id: WindowId) {
+        self.active_workspace_mut().focus_window(id);
+        self.update_keyboard_focus();
+    }
+
+    /// Resolves the workspace id backing a mapped `Window`, if any.
+    /// Override-redirect windows are unmanaged and return `None`.
+    pub(crate) fn id_of_window(&self, window: &Window) -> Option<WindowId> {
+        if let Some(tl) = window.toplevel() {
+            return self
+                .surfaces
+                .iter()
+                .find(|(_, s)| *s == tl)
+                .map(|(id, _)| *id);
         }
+        #[cfg(feature = "xwayland")]
+        if let Some(x11) = window.x11_surface() {
+            let wid = x11.window_id();
+            return self
+                .x11_surfaces
+                .iter()
+                .find(|(_, s)| s.window_id() == wid)
+                .map(|(id, _)| *id);
+        }
+        None
     }
 
     /// Closes the currently focused window (`kill_active`).
     pub fn kill_active(&mut self) {
         if let Some(surface) = self.focused_surface() {
             surface.send_close();
+            return;
         }
+        #[cfg(feature = "xwayland")]
+        if let Some(x11) = self.focused_x11_surface()
+            && let Err(e) = x11.close()
+        {
+            tracing::warn!("failed to close X11 window: {e:?}");
+        }
+    }
+
+    /// Focused X11 surface, if the focused window is an X11 one.
+    #[cfg(feature = "xwayland")]
+    pub fn focused_x11_surface(&self) -> Option<X11Surface> {
+        self.active_workspace()
+            .get_focused()
+            .and_then(|id| self.x11_surfaces.get(&id).cloned())
+    }
+
+    /// `wl_surface` of the focused window, whether Wayland or X11.
+    /// `None` when nothing (committed yet) is focused.
+    pub fn focused_wl_surface(
+        &self,
+    ) -> Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface> {
+        if let Some(surface) = self.focused_surface() {
+            return Some(surface.wl_surface().clone());
+        }
+        #[cfg(feature = "xwayland")]
+        if let Some(x11) = self.focused_x11_surface() {
+            return x11.wl_surface();
+        }
+        None
+    }
+
+    /// Fully removes a managed X11 window: workspace, maps, geometry,
+    /// grabs and space. Idempotent — safe to call from both unmap and
+    /// destroy notifications.
+    #[cfg(feature = "xwayland")]
+    pub fn remove_x11_window(&mut self, surface: &X11Surface) {
+        let wid = surface.window_id();
+        let id = self
+            .x11_surfaces
+            .iter()
+            .find(|(_, s)| s.window_id() == wid)
+            .map(|(id, _)| *id);
+        if let Some(id) = id {
+            self.x11_surfaces.remove(&id);
+            self.float_geo.remove(&id);
+            if self.grab.window_id() == Some(id) {
+                self.grab = PointerGrabState::None;
+            }
+            for ws in &mut self.workspaces {
+                ws.remove_window(id);
+            }
+            self.broadcast_event(aerowm_ipc::IpcEvent::WindowClosed(id.as_usize()));
+        }
+        // Unmap any matching space element (managed or override-redirect).
+        let dead: Vec<Window> = self
+            .space
+            .elements()
+            .filter(|w| {
+                w.x11_surface()
+                    .map(|s| s.window_id() == wid)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+        for w in dead {
+            self.space.unmap_elem(&w);
+        }
+        self.override_redirect.retain(|s| s.window_id() != wid);
+        self.apply_layout();
+        self.update_keyboard_focus();
     }
 
     pub fn focus_next(&mut self) {
@@ -388,11 +527,26 @@ impl AerowmState {
 
     /// Window object currently mapped for a window id, if any.
     fn window_object(&self, id: WindowId) -> Option<Window> {
-        let surface = self.surfaces.get(&id)?;
-        self.space
-            .elements()
-            .find(|w| w.toplevel() == Some(surface))
-            .cloned()
+        if let Some(surface) = self.surfaces.get(&id)
+            && let Some(window) = self
+                .space
+                .elements()
+                .find(|w| w.toplevel() == Some(surface))
+        {
+            return Some(window.clone());
+        }
+        #[cfg(feature = "xwayland")]
+        if let Some(x11) = self.x11_surfaces.get(&id) {
+            let wid = x11.window_id();
+            if let Some(window) = self
+                .space
+                .elements()
+                .find(|w| w.x11_surface().map(|s| s.window_id()) == Some(wid))
+            {
+                return Some(window.clone());
+            }
+        }
+        None
     }
 
     /// Current space geometry (location + committed size) of a window id.
@@ -533,14 +687,23 @@ impl AerowmState {
                 if let Some(window) = self.window_object(id) {
                     self.space.map_element(window, Point::from((nx, ny)), false);
                 }
-                if let Some(surface) = self.surfaces.get(&id).cloned() {
+                let resized = CoreRect::new(nx, ny, nw as u32, nh as u32);
+                if let Some(surface) = self.surfaces.get(&id) {
                     surface.with_pending_state(|s| {
                         s.size = Some((nw, nh).into());
                     });
                     surface.send_configure();
                 }
-                self.float_geo
-                    .insert(id, CoreRect::new(nx, ny, nw as u32, nh as u32));
+                #[cfg(feature = "xwayland")]
+                if !self.surfaces.contains_key(&id)
+                    && let Some(x11) = self.x11_surfaces.get(&id)
+                {
+                    let geo = smithay::utils::Rectangle::new((nx, ny).into(), (nw, nh).into());
+                    if let Err(e) = x11.configure(Some(geo)) {
+                        tracing::warn!("failed to configure X11 window: {e:?}");
+                    }
+                }
+                self.float_geo.insert(id, resized);
             }
         }
     }
@@ -558,16 +721,11 @@ impl AerowmState {
 
     fn remap_active_workspace(&mut self) {
         // Remember Window objects by id before unmapping everything.
+        // Managed X11 windows ride along via the same id lookup.
         let mut by_id: HashMap<WindowId, Window> = HashMap::new();
         for window in self.space.elements() {
-            if let Some(toplevel) = window.toplevel() {
-                if let Some((id, _)) = self
-                    .surfaces
-                    .iter()
-                    .find(|(_, s)| *s == toplevel)
-                {
-                    by_id.insert(*id, window.clone());
-                }
+            if let Some(id) = self.id_of_window(window) {
+                by_id.insert(id, window.clone());
             }
         }
         let all: Vec<Window> = self.space.elements().cloned().collect();
@@ -576,34 +734,64 @@ impl AerowmState {
         }
         let ids: Vec<WindowId> = self.active_workspace().get_windows().to_vec();
         for id in ids {
-            if let Some(surface) = self.surfaces.get(&id).cloned() {
-                let window = by_id
-                    .remove(&id)
-                    .unwrap_or_else(|| Window::new_wayland_window(surface.clone()));
-                if self.active_workspace().is_floating(id) {
-                    // Floating windows keep their pinned user geometry.
-                    let loc = self
-                        .float_geo
+            // Resolve (or re-create) the Window from either backend.
+            let window = if let Some(window) = by_id.remove(&id) {
+                Some(window)
+            } else if let Some(surface) = self.surfaces.get(&id).cloned() {
+                Some(Window::new_wayland_window(surface))
+            } else {
+                #[cfg(feature = "xwayland")]
+                {
+                    self.x11_surfaces
                         .get(&id)
-                        .map(|r| Point::from((r.origin.x, r.origin.y)))
-                        .unwrap_or(Point::from((0, 0)));
-                    if let Some(pinned) = self.float_geo.get(&id) {
-                        surface.with_pending_state(|s| {
-                            s.size = Some(
-                                (pinned.size.width as i32, pinned.size.height as i32).into(),
-                            );
-                        });
-                        surface.send_configure();
-                    }
-                    self.space.map_element(window, loc, false);
-                } else {
-                    // Re-map; real position comes from apply_layout right after.
-                    self.space.map_element(window, (0, 0), false);
+                        .cloned()
+                        .map(Window::new_x11_window)
                 }
+                #[cfg(not(feature = "xwayland"))]
+                {
+                    None
+                }
+            };
+            let Some(window) = window else { continue };
+            if self.active_workspace().is_floating(id) {
+                // Floating windows keep their pinned user geometry.
+                let loc = self
+                    .float_geo
+                    .get(&id)
+                    .map(|r| Point::from((r.origin.x, r.origin.y)))
+                    .unwrap_or(Point::from((0, 0)));
+                if let Some(pinned) = self.float_geo.get(&id).copied() {
+                    self.configure_window_size(id, &pinned);
+                }
+                self.space.map_element(window, loc, false);
+            } else {
+                // Re-map; real position comes from apply_layout right after.
+                self.space.map_element(window, (0, 0), false);
             }
         }
         self.apply_layout();
         self.update_keyboard_focus();
+    }
+
+    /// Pushes a size configure to a managed window on either backend.
+    fn configure_window_size(&self, id: WindowId, rect: &CoreRect) {
+        if let Some(surface) = self.surfaces.get(&id) {
+            surface.with_pending_state(|s| {
+                s.size = Some((rect.size.width as i32, rect.size.height as i32).into());
+            });
+            surface.send_configure();
+            return;
+        }
+        #[cfg(feature = "xwayland")]
+        if let Some(x11) = self.x11_surfaces.get(&id) {
+            let geo = smithay::utils::Rectangle::new(
+                (rect.origin.x, rect.origin.y).into(),
+                (rect.size.width as i32, rect.size.height as i32).into(),
+            );
+            if let Err(e) = x11.configure(Some(geo)) {
+                tracing::warn!("failed to configure X11 window: {e:?}");
+            }
+        }
     }
 
     pub fn switch_workspace(&mut self, idx: usize) {
@@ -629,6 +817,66 @@ impl AerowmState {
             self.active_ws - 1
         };
         self.switch_workspace(prev);
+    }
+
+    /// Starts the XWayland server and, once ready, the X11 window manager.
+    ///
+    /// Missing `Xwayland` binary (or any other startup failure) is reported
+    /// as `Err` so the caller can keep running Wayland-only.
+    #[cfg(feature = "xwayland")]
+    pub fn init_xwayland(
+        &mut self,
+        display_handle: &DisplayHandle,
+        loop_handle: LoopHandle<'static, Self>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.loop_handle = Some(loop_handle.clone());
+
+        let (xwayland, client) = XWayland::spawn(
+            display_handle,
+            None,
+            Vec::<(String, String)>::new(),
+            true,
+            std::process::Stdio::null(),
+            std::process::Stdio::null(),
+            |_| {},
+        )
+        .map_err(|e| format!("spawning Xwayland failed (is it installed?): {e}"))?;
+
+        loop_handle
+            .insert_source(xwayland, move |event, _, state: &mut Self| {
+                match event {
+                    XWaylandEvent::Ready {
+                        x11_socket,
+                        display_number,
+                    } => {
+                        tracing::info!("XWayland ready on :{display_number}");
+                        // SAFETY: single-threaded startup path, no concurrent
+                        // readers of the process environment here.
+                        unsafe {
+                            std::env::set_var("DISPLAY", format!(":{display_number}"));
+                        }
+                        let Some(handle) = state.loop_handle.clone() else {
+                            tracing::error!("no loop handle for XWM startup");
+                            return;
+                        };
+                        match X11Wm::start_wm(handle, x11_socket, client.clone()) {
+                            Ok(xwm) => {
+                                tracing::info!("X11 window manager started");
+                                state.xwm = Some(xwm);
+                            }
+                            Err(e) => {
+                                tracing::error!("starting XWM failed: {e:?}");
+                            }
+                        }
+                    }
+                    XWaylandEvent::Error => {
+                        tracing::error!("XWayland exited during startup; X11 apps unavailable");
+                    }
+                }
+            })
+            .map_err(|e| format!("XWayland event source: {e}"))?;
+
+        Ok(())
     }
 }
 
