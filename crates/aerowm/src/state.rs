@@ -15,6 +15,7 @@ use smithay::output::Output;
 use smithay::backend::renderer::damage::OutputDamageTracker;
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::backend::winit::WinitGraphicsBackend;
+use crate::backend::udev::UdevRuntime;
 use smithay::utils::{Logical, Point, Size, IsAlive, SERIAL_COUNTER};
 use smithay::wayland::output::WlOutputData;
 use smithay::reexports::wayland_server::protocol::wl_output::WlOutput;
@@ -46,6 +47,7 @@ pub struct AerowmState {
     pub output: Option<Output>,
     pub damage_tracker: Option<OutputDamageTracker>,
     pub backend: Option<WinitGraphicsBackend<GlesRenderer>>,
+    pub udev_data: Option<UdevRuntime>,
     pub popup_manager: PopupManager,
     pub output_size: Option<Size<i32, smithay::utils::Physical>>,
 }
@@ -79,6 +81,7 @@ impl AerowmState {
             output: None,
             damage_tracker: None,
             backend: None,
+            udev_data: None,
             popup_manager: PopupManager::default(),
             output_size: None,
         }
@@ -114,6 +117,12 @@ impl AerowmState {
         };
 
         let area = CoreRect::new(0, 0, output_size.w as u32, output_size.h as u32);
+        self.apply_layout_in(area);
+    }
+
+    /// Same as [`Self::apply_layout`] but for an explicit area.
+    /// Used by the native backend to tile per-monitor.
+    pub fn apply_layout_in(&mut self, area: CoreRect) {
         let layout = self.active_workspace().get_current_layout();
         let window_rects = self.active_workspace().apply_layout(layout, area);
 

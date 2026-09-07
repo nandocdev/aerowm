@@ -99,11 +99,15 @@ pub fn dispatch_keybinding(state: &mut AerowmState, combo: &str) -> bool {
     }
 }
 
-pub fn handle_keyboard(state: &mut AerowmState, event: WinitKeyboardInputEvent) {
+/// Backend-agnostic keyboard dispatch shared by winit and libinput.
+/// Feeds the key through the seat's xkb state; global binds intercept.
+pub fn handle_keyboard_input(
+    state: &mut AerowmState,
+    keycode: smithay::backend::input::Keycode,
+    key_state: KeyState,
+    time: u32,
+) {
     let serial = SERIAL_COUNTER.next_serial();
-    let time = event.time() as u32;
-    let keycode = event.key_code();
-    let key_state = event.state();
 
     let Some(keyboard) = state.seat.get_keyboard() else {
         return;
@@ -129,6 +133,10 @@ pub fn handle_keyboard(state: &mut AerowmState, event: WinitKeyboardInputEvent) 
     );
 }
 
+pub fn handle_keyboard(state: &mut AerowmState, event: WinitKeyboardInputEvent) {
+    handle_keyboard_input(state, event.key_code(), event.state(), event.time() as u32);
+}
+
 fn pointer_focus_under(
     state: &AerowmState,
     pos: Point<f64, Logical>,
@@ -138,21 +146,11 @@ fn pointer_focus_under(
     Some((surface, pos))
 }
 
-pub fn handle_pointer_motion_absolute(
-    state: &mut AerowmState,
-    event: WinitMouseMovedEvent,
-) {
-    let Some(output_size) = state.output_size else {
-        return;
-    };
-    let pos = Point::from((
-        event.x_transformed(output_size.w),
-        event.y_transformed(output_size.h),
-    ));
+/// Moves the pointer to an absolute logical position (shared path).
+pub fn pointer_motion_to(state: &mut AerowmState, pos: Point<f64, Logical>, time: u32) {
     state.pointer_location = pos;
 
     let serial = SERIAL_COUNTER.next_serial();
-    let time = event.time() as u32;
     let Some(pointer) = state.seat.get_pointer() else {
         return;
     };
@@ -169,12 +167,35 @@ pub fn handle_pointer_motion_absolute(
     );
 }
 
-pub fn handle_pointer_button(state: &mut AerowmState, event: WinitMouseInputEvent) {
-    let serial = SERIAL_COUNTER.next_serial();
-    let time = event.time() as u32;
+/// Applies a relative pointer delta, clamped to the primary output bounds.
+pub fn pointer_motion_relative(state: &mut AerowmState, delta: Point<f64, Logical>, time: u32) {
+    let mut pos = state.pointer_location + delta;
+    // Clamp into the primary output so the cursor can't get lost.
+    if let Some(size) = state.output_size {
+        pos.x = pos.x.clamp(0.0, size.w as f64 - 1.0);
+        pos.y = pos.y.clamp(0.0, size.h as f64 - 1.0);
+    } else if let Some(geometry) = state.space.outputs().next().and_then(|o| state.space.output_geometry(o)) {
+        pos.x = pos.x.clamp(
+            geometry.loc.x as f64,
+            (geometry.loc.x + geometry.size.w) as f64 - 1.0,
+        );
+        pos.y = pos.y.clamp(
+            geometry.loc.y as f64,
+            (geometry.loc.y + geometry.size.h) as f64 - 1.0,
+        );
+    }
+    pointer_motion_to(state, pos, time);
+}
 
+/// Shared button path: click-to-focus on press, then forward to the client.
+pub fn pointer_button_event(
+    state: &mut AerowmState,
+    button: u32,
+    btn_state: ButtonState,
+    time: u32,
+) {
     // Click-to-focus: focus the window under the cursor on press.
-    if event.state() == ButtonState::Pressed {
+    if btn_state == ButtonState::Pressed {
         let pos = state.pointer_location;
         let toplevel = state
             .space
@@ -185,17 +206,41 @@ pub fn handle_pointer_button(state: &mut AerowmState, event: WinitMouseInputEven
         }
     }
 
+    let serial = SERIAL_COUNTER.next_serial();
     let Some(pointer) = state.seat.get_pointer() else {
         return;
     };
     pointer.button(
         state,
         &ButtonEvent {
-            button: event.button_code(),
-            state: event.state(),
+            button,
+            state: btn_state,
             serial,
             time,
         },
+    );
+}
+
+pub fn handle_pointer_motion_absolute(
+    state: &mut AerowmState,
+    event: WinitMouseMovedEvent,
+) {
+    let Some(output_size) = state.output_size else {
+        return;
+    };
+    let pos = Point::from((
+        event.x_transformed(output_size.w),
+        event.y_transformed(output_size.h),
+    ));
+    pointer_motion_to(state, pos, event.time() as u32);
+}
+
+pub fn handle_pointer_button(state: &mut AerowmState, event: WinitMouseInputEvent) {
+    pointer_button_event(
+        state,
+        event.button_code(),
+        event.state(),
+        event.time() as u32,
     );
 }
 
@@ -204,4 +249,59 @@ pub fn handle_pointer_axis(state: &mut AerowmState, event: WinitMouseWheelEvent)
     // for sprint 4 we just log it so seat/pointer wiring stays verifiable.
     debug!("pointer axis event (ignored for now): {event:?}");
     let _ = state;
+}
+
+/// Routes libinput (udev backend) events into the shared dispatch paths.
+pub fn handle_libinput_event(
+    state: &mut AerowmState,
+    event: smithay::backend::input::InputEvent<smithay::backend::libinput::LibinputInputBackend>,
+) {
+    use smithay::backend::input::InputEvent;
+    use smithay::backend::input::{
+        KeyboardKeyEvent as _, PointerButtonEvent as _, PointerMotionEvent as _,
+    };
+
+    match event {
+        InputEvent::Keyboard { event } => {
+            handle_keyboard_input(state, event.key_code(), event.state(), event.time() as u32);
+        }
+        InputEvent::PointerMotion { event } => {
+            let time = event.time() as u32;
+            pointer_motion_relative(state, event.delta(), time);
+        }
+        InputEvent::PointerMotionAbsolute { event } => {
+            use smithay::backend::input::AbsolutePositionEvent as _;
+            // Libinput absolute coords are normalized [0,1]; scale by primary output.
+            let (w, h) = state
+                .output_size
+                .map(|s| (s.w as f64, s.h as f64))
+                .or_else(|| {
+                    state
+                        .space
+                        .outputs()
+                        .next()
+                        .and_then(|o| state.space.output_geometry(o))
+                        .map(|g| (g.size.w as f64, g.size.h as f64))
+                })
+                .unwrap_or((1920.0, 1080.0));
+            let time = event.time() as u32;
+            pointer_motion_to(
+                state,
+                Point::from((event.x() * w, event.y() * h)),
+                time,
+            );
+        }
+        InputEvent::PointerButton { event } => {
+            pointer_button_event(
+                state,
+                event.button_code(),
+                event.state(),
+                event.time() as u32,
+            );
+        }
+        InputEvent::PointerAxis { event } => {
+            debug!("libinput axis event (ignored for now): {event:?}");
+        }
+        _ => {}
+    }
 }
