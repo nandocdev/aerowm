@@ -11,6 +11,8 @@ pub enum IpcCommand {
     KillWindow,
     /// Stop the compositor
     Exit,
+    /// Toggle scratchpad workspace
+    ToggleScratchpad,
     /// Hot restart: dump `session.json`, then re-exec the compositor
     /// inheriting the Wayland listening socket. Layout state is restored;
     /// already-connected clients are reaped by the exec itself.
@@ -32,6 +34,7 @@ pub struct CompositorSnapshot {
     pub workspaces: Vec<WorkspaceInfo>,
     /// Index into [`CompositorSnapshot::workspaces`] of the active workspace.
     pub active: usize,
+    pub layout: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

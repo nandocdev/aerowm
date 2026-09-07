@@ -126,6 +126,8 @@ pub struct AerowmState {
     pub pointer_location: Point<f64, Logical>,
 
     pub workspaces: Vec<Workspace>,
+    pub scratchpad: Vec<WindowId>,
+
     pub active_ws: usize,
     pub surfaces: HashMap<WindowId, ToplevelSurface>,
     /// Restored placement directives awaiting matching windows.
@@ -194,6 +196,7 @@ impl AerowmState {
             xwayland_shell: XWaylandShellState::new::<Self>(display_handle),
             pointer_location: Point::from((0.0, 0.0)),
             workspaces,
+            scratchpad: Vec::new(),
             active_ws: 0,
             surfaces: HashMap::new(),
             pending_placements: Vec::new(),
@@ -243,6 +246,7 @@ impl AerowmState {
         aerowm_ipc::CompositorSnapshot {
             workspaces,
             active: self.active_ws,
+            layout: self.active_workspace().get_current_layout().name().to_string(),
         }
     }
 
@@ -649,6 +653,7 @@ impl AerowmState {
         for ws in &mut self.workspaces {
             ws.remove_window(id);
         }
+        self.scratchpad.retain(|&x| x != id);
         if let Some(window) = self.window_object(id) {
             self.space.unmap_elem(&window);
         }
@@ -936,7 +941,20 @@ impl AerowmState {
             }
         }
         
-        if let Some(floating) = rules.floating {
+                
+        if let Some(scratchpad) = rules.scratchpad {
+            if scratchpad && !self.scratchpad.contains(&id) {
+                self.scratchpad.push(id);
+                for ws in &mut self.workspaces {
+                    ws.remove_window(id);
+                }
+                if let Some(window) = self.window_object(id) {
+                    self.space.unmap_elem(&window);
+                }
+                self.float_window(id);
+            }
+        }
+if let Some(floating) = rules.floating {
             if floating {
                 self.float_window(id);
             }
@@ -1060,6 +1078,40 @@ impl AerowmState {
 
         Ok(())
     }
+
+    pub fn toggle_scratchpad(&mut self) {
+        if self.scratchpad.is_empty() {
+            return;
+        }
+
+        let mut focused_sp_idx = None;
+        if let Some(focused) = self.active_workspace().get_focused() {
+            if let Some(pos) = self.scratchpad.iter().position(|&w| w == focused) {
+                focused_sp_idx = Some(pos);
+            }
+        }
+
+        if let Some(pos) = focused_sp_idx {
+            let id = self.scratchpad.remove(pos);
+            self.scratchpad.push(id);
+            self.active_workspace_mut().remove_window(id);
+            if let Some(window) = self.window_object(id) {
+                self.space.unmap_elem(&window);
+            }
+        } else {
+            let id = self.scratchpad.last().copied().unwrap();
+            let active_ws_idx = self.active_ws;
+            for ws in &mut self.workspaces {
+                ws.remove_window(id);
+            }
+            self.workspaces[active_ws_idx].add_window(id);
+            self.float_window(id);
+            self.workspaces[active_ws_idx].focus_window(id);
+            self.update_keyboard_focus();
+        }
+        self.apply_layout();
+    }
+
 }
 
 /// Corner of a rectangle nearest to the cursor position.

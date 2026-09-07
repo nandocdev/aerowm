@@ -26,6 +26,7 @@ enum Commands {
     /// Kill the focused window
     Kill,
     /// Exit the compositor
+    Scratchpad,
     Exit,
     /// Hot-restart the compositor in place (keeps the Wayland socket
     /// and restores workspaces/layouts from session.json)
@@ -40,6 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ipc_command = match cli.command {
         Commands::Reload => IpcCommand::ReloadConfig,
         Commands::Kill => IpcCommand::KillWindow,
+        Commands::Scratchpad => IpcCommand::ToggleScratchpad,
         Commands::Exit => IpcCommand::Exit,
         Commands::Restart => IpcCommand::Restart,
         Commands::Subscribe => IpcCommand::Subscribe,

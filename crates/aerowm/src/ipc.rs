@@ -80,6 +80,10 @@ pub fn init_ipc_socket(
                             state.restart_requested = true;
                             state.is_running = false;
                         }
+                        IpcCommand::ToggleScratchpad => {
+                            info!("IPC: ToggleScratchpad requested");
+                            state.toggle_scratchpad();
+                        }
                         IpcCommand::KillWindow => {
                             info!("IPC: KillWindow requested");
                             state.kill_active();
