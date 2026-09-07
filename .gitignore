@@ -1,2 +1,6 @@
 /target
 /docs/
+/.gemini
+AGENTS.md
+GEMINI.md
+opencode.jsonc
