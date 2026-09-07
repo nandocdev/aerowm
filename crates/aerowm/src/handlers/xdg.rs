@@ -29,9 +29,14 @@ impl XdgShellHandler for AerowmState {
         self.space.map_element(window, (0, 0), true);
 
         // Restored session placement (no-op unless a pending entry matches).
-        if let Some(app) = app {
+        if let Some(app) = app.clone() {
             self.apply_pending_placement(id, &app, prev_focus);
         }
+
+        // Apply Luau window rules
+        let app_id = app.as_ref().map(|a| a.id.as_str()).unwrap_or("");
+        let title = app.as_ref().and_then(|a| a.title.as_deref());
+        self.apply_window_rules(id, app_id, title.as_deref());
 
         // Apply layout to position all windows
         self.apply_layout();

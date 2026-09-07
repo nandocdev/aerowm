@@ -55,7 +55,7 @@ pub fn init_ipc_socket(
                                 }
                                 IpcCommand::ReloadConfig => {
                                     info!("IPC: ReloadConfig requested");
-                                    if let Err(e) = state.engine.load_default_config() {
+                                    if let Err(e) = state.reload_config() {
                                         error!("Config reload failed: {}", e);
                                     }
                                 }

@@ -895,6 +895,37 @@ impl AerowmState {
         }
     }
 
+
+    /// Applies declarative Window Rules via Luau to a new window.
+    pub fn apply_window_rules(&mut self, id: WindowId, app_id: &str, title: Option<&str>) {
+        let rules = self.engine.evaluate_rules(app_id, title);
+        
+        if let Some(ws_idx) = rules.workspace {
+            let target_ws = ws_idx.saturating_sub(1);
+            if target_ws < self.workspaces.len() && target_ws != self.active_ws {
+                self.active_workspace_mut().remove_window(id);
+                self.workspaces[target_ws].add_window(id);
+            }
+        }
+        
+        if let Some(floating) = rules.floating {
+            if floating {
+                self.float_window(id);
+            }
+        }
+    }
+
+    /// Performs an atomic Hot Reload of the Luau configuration.
+    pub fn reload_config(&mut self) -> Result<(), String> {
+        let new_engine = aerowm_lua::ScriptEngine::new().map_err(|e| format!("Failed to init new Lua engine: {}", e))?;
+        new_engine.load_default_config().map_err(|e| format!("Config syntax error: {}", e))?;
+        
+        self.engine = new_engine;
+        tracing::info!("Hot reload successful");
+        let _ = self.engine.emit_hook("reload");
+        Ok(())
+    }
+
     pub fn switch_workspace(&mut self, idx: usize) {
         if idx >= self.workspaces.len() || idx == self.active_ws {
             return;

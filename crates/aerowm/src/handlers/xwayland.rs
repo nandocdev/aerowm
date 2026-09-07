@@ -85,10 +85,16 @@ impl XwmHandler for AerowmState {
             self.space.map_element(w, (0, 0), true);
         }
         // Restored session placement (no-op unless a pending entry matches).
-        if let Some(app) = app {
+        if let Some(app) = app.clone() {
             if let Some(id) = id_for_x11(self, &window) {
                 self.apply_pending_placement(id, &app, prev_focus);
             }
+        }
+
+        if let Some(id) = id_for_x11(self, &window) {
+            let app_id = app.as_ref().map(|a| a.id.as_str()).unwrap_or("");
+            let title = window.title();
+            self.apply_window_rules(id, app_id, Some(title.as_str()));
         }
         self.apply_layout();
         self.update_keyboard_focus();

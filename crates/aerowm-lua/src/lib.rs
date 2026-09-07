@@ -2,6 +2,12 @@ use mlua::{Function, Lua, Result, Table};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[derive(Debug, Default, Clone)]
+pub struct WindowRules {
+    pub floating: Option<bool>,
+    pub workspace: Option<usize>,
+}
+
 /// The central Lua(u) scripting engine for AeroWM.
 /// It wraps the Luau VM, injects the secure API bindings, 
 /// and handles the evaluation of user configurations.
@@ -51,6 +57,10 @@ impl ScriptEngine {
         // Table dedicated to user-defined lifecycle hooks
         let hooks_table = lua.create_table()?;
         aerowm_table.set("hooks", hooks_table)?;
+
+        // Table dedicated to window rules
+        let rules_table = lua.create_table()?;
+        aerowm_table.set("rules", rules_table)?;
 
         // Inject the `aerowm` table into the Luau globals
         lua.globals().set("aerowm", aerowm_table)?;
@@ -128,6 +138,53 @@ impl ScriptEngine {
         }
         true
     }
+
+    /// Evaluates window rules against a given app class/id and title.
+    /// Iterates through `aerowm.rules` and merges matches.
+    pub fn evaluate_rules(&self, app_id: &str, title: Option<&str>) -> WindowRules {
+        let mut result = WindowRules::default();
+        
+        let globals = self.lua.globals();
+        let aerowm: Table = match globals.get("aerowm") {
+            Ok(t) => t,
+            Err(_) => return result,
+        };
+        let rules: Table = match aerowm.get("rules") {
+            Ok(t) => t,
+            Err(_) => return result,
+        };
+        
+        for pair in rules.pairs::<mlua::Integer, Table>() {
+            let (_, rule) = match pair {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+            
+            let match_tbl: Table = match rule.get("match") {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+            
+            let rule_class: Option<String> = match_tbl.get("class").ok();
+            let rule_title: Option<String> = match_tbl.get("title").ok();
+            
+            let class_match = rule_class.map_or(true, |c| c == app_id);
+            let title_match = rule_title.map_or(true, |t| title.map_or(false, |title| title.contains(&t)));
+            
+            if class_match && title_match {
+                if let Ok(set_tbl) = rule.get::<Table>("set") {
+                    if let Ok(floating) = set_tbl.get::<bool>("floating") {
+                        result.floating = Some(floating);
+                    }
+                    if let Ok(ws) = set_tbl.get::<usize>("workspace") {
+                        result.workspace = Some(ws);
+                    }
+                }
+            }
+        }
+        
+        result
+    }
 }
 
 #[cfg(test)]
@@ -185,5 +242,29 @@ mod tests {
         let bad_config = "aerowm.log('Missing closing parenthesis'";
         let result = engine.load_config_string(bad_config);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_window_rules() {
+        let engine = ScriptEngine::new().unwrap();
+        let config = r#"
+            table.insert(aerowm.rules, {
+                match = { class = "kitty" },
+                set = { floating = true, workspace = 3 }
+            })
+            table.insert(aerowm.rules, {
+                match = { class = "firefox", title = "YouTube" },
+                set = { workspace = 4 }
+            })
+        "#;
+        engine.load_config_string(config).unwrap();
+        
+        let r1 = engine.evaluate_rules("kitty", None);
+        assert_eq!(r1.floating, Some(true));
+        assert_eq!(r1.workspace, Some(3));
+        
+        let r2 = engine.evaluate_rules("firefox", Some("YouTube - Mozilla Firefox"));
+        assert_eq!(r2.workspace, Some(4));
+        assert_eq!(r2.floating, None);
     }
 }

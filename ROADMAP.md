@@ -125,10 +125,10 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] Serializar estado del WM (workspaces, layouts, ventanas) en `session.json` al solicitar un reinicio.
   * [x] Implementar transferencia del File Descriptor (FD) del socket de Wayland al nuevo binario vía `exec` para sobrevivir reinicios sin matar aplicaciones.
 
-* [ ] **Hot Reload Atómico de Configuración**
-  * [ ] Implementar comando de recarga en caliente (`reload`): reevaluar `config.luau` en una nueva VM aislada sin destruir superficies activas ni reiniciar clientes Wayland.
-  * [ ] Implementar evaluación declarativa de Reglas de Ventana (`Match`/`Rule`) vía Luau (auto-asignar float, workspace, ocultas en Scratchpad).
-  * [ ] Intercambio atómico de punteros de configuración en memoria con tiempo de ejecución $< 15 \text{ ms}$.
+* [x] **Hot Reload Atómico de Configuración**
+  * [x] Implementar comando de recarga en caliente (`reload`): reevaluar `config.luau` en una nueva VM aislada sin destruir superficies activas ni reiniciar clientes Wayland.
+  * [x] Implementar evaluación declarativa de Reglas de Ventana (`Match`/`Rule`) vía Luau (auto-asignar float, workspace, ocultas en Scratchpad).
+  * [x] Intercambio atómico de punteros de configuración en memoria con tiempo de ejecución $< 15 \text{ ms}$.
 
 * [ ] **Protocolos Extendidos de Wayland**
   * [ ] Implementar `xdg-decoration-v1`, `fractional-scale-v1` y `viewporter` para escalado HiDPI y decoraciones SSD/CSD.
