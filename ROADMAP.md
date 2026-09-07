@@ -131,10 +131,10 @@ Este roadmap está estructurado en **6 sprints secuenciales** organizados bajo u
   * [x] Intercambio atómico de punteros de configuración en memoria con tiempo de ejecución $< 15 \text{ ms}$.
 
 * [ ] **Protocolos Extendidos de Wayland**
-  * [ ] Implementar `xdg-decoration-v1`, `fractional-scale-v1` y `viewporter` para escalado HiDPI y decoraciones SSD/CSD.
+  * [x] Implementar `xdg-decoration-v1`, `fractional-scale-v1` y `viewporter` para escalado HiDPI y decoraciones SSD/CSD.
   * [ ] Implementar `ext-session-lock-v1` (bloqueo de pantalla) y `wlr-screencopy-v1` (capturas y streaming).
-  * [ ] **Optimización de Memoria y Renderizado**
-  * [ ] Aplicar renderizado por regiones dañadas (*damaged-based rendering*) para pintar únicamente los rectángulos de la pantalla que sufrieron cambios.
+  * [x] **Optimización de Memoria y Renderizado**
+  * [x] Aplicar renderizado por regiones dañadas (*damaged-based rendering*) para pintar únicamente los rectángulos de la pantalla que sufrieron cambios.
 
 * [ ] **Empaquetado y Distribución**
   * [ ] Crear el descriptor de sesión de escritorio `assets/aerowm.desktop` para compatibilidad con display managers (GDM, SDDM).
