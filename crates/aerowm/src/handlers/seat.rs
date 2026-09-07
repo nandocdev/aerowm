@@ -12,12 +12,18 @@ impl SeatHandler for AerowmState {
         &mut self.seat_state
     }
     
-    fn focus_changed(&mut self, _seat: &smithay::input::Seat<Self>, _focused: Option<&WlSurface>) {
-        // Handle keyboard focus changes
+    fn focus_changed(&mut self, seat: &smithay::input::Seat<Self>, focused: Option<&WlSurface>) {
+        // Keep the winit window title in sync-ish and log for debugging;
+        // real focus state lives in the active Workspace + keyboard focus.
+        tracing::debug!(
+            seat = seat.name(),
+            has_focus = focused.is_some(),
+            "keyboard focus changed"
+        );
     }
-    
+
     fn cursor_image(&mut self, _seat: &smithay::input::Seat<Self>, _image: CursorImageStatus) {
-        // Handle cursor image changes requested by clients
+        // Nested winit backend: the host cursor is used, nothing to upload.
     }
 }
 

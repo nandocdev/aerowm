@@ -3,7 +3,7 @@ use std::os::unix::net::UnixListener;
 use std::path::Path;
 use std::io::{Read, Write};
 use tracing::{info, warn, error};
-use aerowm_ipc::{IpcCommand, IpcResponse, IPC_SOCKET_PATH};
+use aerowm_ipc::{IpcCommand, IpcResponse, WorkspaceAction, IPC_SOCKET_PATH};
 use crate::state::AerowmState;
 
 pub fn init_ipc_socket(
@@ -50,8 +50,21 @@ pub fn init_ipc_socket(
                                     info!("IPC: Exit requested");
                                     state.is_running = false;
                                 }
-                                _ => {
-                                    info!("IPC Command received: {:?}", command);
+                                IpcCommand::KillWindow => {
+                                    info!("IPC: KillWindow requested");
+                                    state.kill_active();
+                                }
+                                IpcCommand::Workspace { action } => {
+                                    info!("IPC: Workspace action: {:?}", action);
+                                    match action {
+                                        WorkspaceAction::Next => state.next_workspace(),
+                                        WorkspaceAction::Prev => state.prev_workspace(),
+                                        WorkspaceAction::Switch(i) => {
+                                            // User-facing workspaces are 1-based ("1".."4").
+                                            let idx = if i == 0 { 0 } else { i - 1 };
+                                            state.switch_workspace(idx)
+                                        }
+                                    }
                                 }
                             }
                             

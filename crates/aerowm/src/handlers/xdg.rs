@@ -15,23 +15,21 @@ impl XdgShellHandler for AerowmState {
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let id = aerowm_core::id::WindowId::new();
-        
+
         // Register in the domain layout
-        self.active_workspace.add_window(id);
+        self.active_workspace_mut().add_window(id);
         self.surfaces.insert(id, surface.clone());
-        
+
         // Create a Window from the toplevel surface
         let window = Window::new_wayland_window(surface.clone());
-        
-        // Set window as activated
-        window.set_activated(true);
-        
+
         // Add to space at (0, 0) - layout will be applied later
         self.space.map_element(window, (0, 0), true);
-        
+
         // Apply layout to position all windows
         self.apply_layout();
-        
+        self.update_keyboard_focus();
+
         // Broadcast window opened event
         self.broadcast_event(aerowm_ipc::IpcEvent::WindowOpened(id.as_usize()));
 

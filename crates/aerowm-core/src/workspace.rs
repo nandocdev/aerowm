@@ -51,6 +51,13 @@ impl Workspace {
         self.focused_index.map(|idx| self.windows[idx])
     }
 
+    /// Directly focuses the given window if it belongs to this workspace.
+    pub fn focus_window(&mut self, id: WindowId) {
+        if let Some(pos) = self.windows.iter().position(|&w| w == id) {
+            self.focused_index = Some(pos);
+        }
+    }
+
     /// Shifts focus to the next window in the stack.
     pub fn focus_next(&mut self) {
         if self.windows.is_empty() { return; }

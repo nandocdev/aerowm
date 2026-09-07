@@ -1,5 +1,6 @@
 mod state;
 mod backend;
+mod input;
 mod ipc;
 mod handlers;
 

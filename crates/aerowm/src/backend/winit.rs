@@ -1,4 +1,5 @@
 use calloop::{timer::{Timer, TimeoutAction}, EventLoop};
+use smithay::backend::input::InputEvent;
 use smithay::backend::winit::{self, WinitEvent};
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::backend::renderer::damage::OutputDamageTracker;
@@ -6,6 +7,7 @@ use smithay::output::{Output, PhysicalProperties};
 use smithay::utils::{Point, Size, Transform, Physical};
 use wayland_server::Display;
 use crate::state::AerowmState;
+use crate::input as input_dispatch;
 use tracing::{info, warn};
 use std::time::Duration;
 
@@ -74,6 +76,21 @@ pub fn init_winit(
                 WinitEvent::Redraw => {
                     render_frame(state);
                 }
+                WinitEvent::Input(event) => match event {
+                    InputEvent::Keyboard { event } => {
+                        input_dispatch::handle_keyboard(state, event);
+                    }
+                    InputEvent::PointerMotionAbsolute { event } => {
+                        input_dispatch::handle_pointer_motion_absolute(state, event);
+                    }
+                    InputEvent::PointerButton { event } => {
+                        input_dispatch::handle_pointer_button(state, event);
+                    }
+                    InputEvent::PointerAxis { event } => {
+                        input_dispatch::handle_pointer_axis(state, event);
+                    }
+                    _ => {}
+                },
                 _ => {}
             }
         });

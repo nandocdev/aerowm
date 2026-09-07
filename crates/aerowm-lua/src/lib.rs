@@ -96,13 +96,37 @@ impl ScriptEngine {
         let globals = self.lua.globals();
         let aerowm: Table = globals.get("aerowm")?;
         let hooks: Table = aerowm.get("hooks")?;
-        
+
         // Only call the hook if the user defined it as a function
         if let Ok(hook_fn) = hooks.get::<Function>(hook_name) {
             hook_fn.call::<()>(())?;
         }
-        
+
         Ok(())
+    }
+
+    /// Dispatches a global keybinding: looks up `aerowm.binds[combo]` and calls it.
+    /// Returns `true` if a bind existed (even if its execution failed — the
+    /// error is logged and swallowed so the compositor never crashes).
+    /// Combo format is canonical: e.g. `"Super+Return"`, `"Super+Shift+q"`.
+    pub fn trigger_bind(&self, combo: &str) -> bool {
+        let globals = self.lua.globals();
+        let aerowm: Table = match globals.get("aerowm") {
+            Ok(t) => t,
+            Err(_) => return false,
+        };
+        let binds: Table = match aerowm.get("binds") {
+            Ok(t) => t,
+            Err(_) => return false,
+        };
+        let func: Function = match binds.get(combo) {
+            Ok(f) => f,
+            Err(_) => return false,
+        };
+        if let Err(e) = func.call::<()>(()) {
+            eprintln!("[AeroWM-Luau] keybind '{combo}' failed: {e}");
+        }
+        true
     }
 }
 
@@ -140,6 +164,19 @@ mod tests {
             end
         "#;
         assert!(engine.load_config_string(config).is_ok());
+    }
+
+    #[test]
+    fn test_trigger_bind() {
+        let engine = ScriptEngine::new().unwrap();
+        let config = r#"
+            aerowm.binds["Super+q"] = function()
+                aerowm.log("kill!")
+            end
+        "#;
+        engine.load_config_string(config).unwrap();
+        assert!(engine.trigger_bind("Super+q"));
+        assert!(!engine.trigger_bind("Super+x"));
     }
 
     #[test]
