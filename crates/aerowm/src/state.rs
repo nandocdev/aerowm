@@ -8,6 +8,10 @@ use smithay::wayland::compositor::CompositorState;
 use smithay::wayland::shm::ShmState;
 use smithay::wayland::shell::wlr_layer::WlrLayerShellState;
 use smithay::wayland::shell::xdg::{XdgShellState, ToplevelSurface};
+use smithay::wayland::fractional_scale::FractionalScaleManagerState;
+use smithay::wayland::viewporter::ViewporterState;
+use smithay::wayland::shell::xdg::decoration::XdgDecorationState;
+
 #[cfg(feature = "xwayland")]
 use smithay::wayland::xwayland_shell::XWaylandShellState;
 #[cfg(feature = "xwayland")]
@@ -104,6 +108,10 @@ pub struct AerowmState {
     pub compositor_state: CompositorState,
     pub shm_state: ShmState,
     pub xdg_shell_state: XdgShellState,
+    pub xdg_decoration_state: XdgDecorationState,
+    pub fractional_scale_state: FractionalScaleManagerState,
+    pub viewporter_state: ViewporterState,
+    
     pub layer_shell_state: WlrLayerShellState,
     pub seat_state: SeatState<Self>,
     pub seat: Seat<Self>,
@@ -169,6 +177,10 @@ impl AerowmState {
             compositor_state: CompositorState::new::<Self>(display_handle),
             shm_state: ShmState::new::<Self>(display_handle, vec![]),
             xdg_shell_state: XdgShellState::new::<Self>(display_handle),
+            xdg_decoration_state: XdgDecorationState::new::<Self>(display_handle),
+            fractional_scale_state: FractionalScaleManagerState::new::<Self>(display_handle),
+            viewporter_state: ViewporterState::new::<Self>(display_handle),
+            
             layer_shell_state: WlrLayerShellState::new::<Self>(display_handle),
             seat_state,
             seat,
