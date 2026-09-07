@@ -114,6 +114,8 @@ pub struct AerowmState {
     #[allow(dead_code)]
     pub session_lock_state: smithay::wayland::session_lock::SessionLockManagerState,
     pub is_locked: bool,
+    pub take_screenshot: bool,
+    pub lock_surfaces: Vec<smithay::wayland::session_lock::LockSurface>,
     pub xdg_decoration_state: XdgDecorationState,
     #[allow(dead_code)]
     pub fractional_scale_state: FractionalScaleManagerState,
@@ -189,6 +191,8 @@ impl AerowmState {
             xdg_shell_state: XdgShellState::new::<Self>(display_handle),
             session_lock_state: smithay::wayland::session_lock::SessionLockManagerState::new::<Self, _>(display_handle, |_| true),
             is_locked: false,
+            take_screenshot: false,
+            lock_surfaces: Vec::new(),
             xdg_decoration_state: XdgDecorationState::new::<Self>(display_handle),
             fractional_scale_state: FractionalScaleManagerState::new::<Self>(display_handle),
             viewporter_state: ViewporterState::new::<Self>(display_handle),

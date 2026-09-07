@@ -193,6 +193,29 @@ fn render_frame(state: &mut AerowmState) {
         )
     };
     
+    // Screenshots
+    if state.take_screenshot {
+        state.take_screenshot = false;
+        if let Some(size) = state.output_size {
+            let rect = smithay::utils::Rectangle::<i32, smithay::utils::Buffer>::from_size(smithay::utils::Size::from((size.w, size.h)));
+            use smithay::backend::renderer::ExportMem;
+            use smithay::backend::allocator::Fourcc;
+            if let Ok(mapping) = renderer.copy_framebuffer(&framebuffer, rect, Fourcc::Abgr8888) {
+                if let Ok(data) = renderer.map_texture(&mapping) {
+                    let data_vec = data.to_vec();
+                    let w = size.w as u32;
+                    let h = size.h as u32;
+                    std::thread::spawn(move || {
+                        let path = format!("/tmp/screenshot-{}.png", std::time::UNIX_EPOCH.elapsed().unwrap_or_default().as_secs());
+                        if let Some(buf) = image::RgbaImage::from_raw(w, h, data_vec) {
+                            let _ = image::save_buffer(&path, &buf, w, h, image::ColorType::Rgba8);
+                        }
+                    });
+                }
+            }
+        }
+    }
+
     // Extract damage before dropping framebuffer
     let damage = render_result.as_ref().ok().and_then(|r| r.damage).map(|v| v.clone());
     
