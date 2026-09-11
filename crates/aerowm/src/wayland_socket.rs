@@ -15,7 +15,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use calloop::{Interest, LoopHandle, Mode, PostAction, generic::Generic};
+use calloop::{generic::Generic, Interest, LoopHandle, Mode, PostAction};
 use wayland_server::DisplayHandle;
 
 use crate::handlers::compositor::ClientState;
@@ -32,8 +32,15 @@ pub struct WaylandSocketInfo {
     pub name: String,
 }
 
-/// Binds (or adopts) the Wayland listening socket, exports
-/// `WAYLAND_DISPLAY`, and registers the accept loop.
+/// Binds (or adopts) the Wayland listening socket and registers the
+/// accept loop.
+///
+/// `WAYLAND_DISPLAY` is deliberately *not* exported here: it is published
+/// by the caller only after the backend is up. A nested winit backend
+/// prefers Wayland whenever the var is set, and our own socket does not
+/// dispatch yet during startup, so an early export would make it connect
+/// to itself and block forever (and it would also lie to the backend
+/// auto-selection in `main`). See `main.rs`.
 ///
 /// Returns the socket info for restart handover.
 pub fn setup_wayland_socket(
@@ -61,10 +68,6 @@ pub fn setup_wayland_socket(
         }
         None => {
             let (listener, name) = bind_fresh()?;
-            // SAFETY: only our own process touches this env var here.
-            unsafe {
-                std::env::set_var("WAYLAND_DISPLAY", &name);
-            }
             tracing::info!("listening for Wayland clients on {name}");
             (listener, name, true)
         }
@@ -169,16 +172,13 @@ mod tests {
     }
 
     fn unique_runtime_dir(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "aerowm-test-{}-{tag}",
-            std::process::id()
-        ));
+        let dir = std::env::temp_dir().join(format!("aerowm-test-{}-{tag}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
 
     #[test]
-    fn fresh_bind_creates_socket_and_exports_display() {
+    fn fresh_bind_creates_socket() {
         let _guard = lock_env();
         let dir = unique_runtime_dir("bind");
         let prev_rt = std::env::var_os("XDG_RUNTIME_DIR");

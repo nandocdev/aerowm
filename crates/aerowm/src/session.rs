@@ -57,13 +57,11 @@ pub fn build_session(state: &AerowmState) -> SessionState {
                 .get_windows()
                 .iter()
                 .filter_map(|id| {
-                    app_id_for_window(state, *id).map(|app| {
-                        aerowm_core::session::WindowEntry {
-                            app,
-                            floating: ws.is_floating(*id),
-                            geo: state.float_geo.get(id).copied(),
-                            focused: Some(*id) == focused_id,
-                        }
+                    app_id_for_window(state, *id).map(|app| aerowm_core::session::WindowEntry {
+                        app,
+                        floating: ws.is_floating(*id),
+                        geo: state.float_geo.get(id).copied(),
+                        focused: Some(*id) == focused_id,
                     })
                 })
                 .collect();
@@ -85,9 +83,8 @@ pub fn build_session(state: &AerowmState) -> SessionState {
 pub fn app_id_of_toplevel(
     surface: &smithay::wayland::shell::xdg::ToplevelSurface,
 ) -> Option<AppId> {
-    let (app_id, title) = smithay::wayland::compositor::with_states(
-        surface.wl_surface(),
-        |states| {
+    let (app_id, title) =
+        smithay::wayland::compositor::with_states(surface.wl_surface(), |states| {
             let data = states
                 .data_map
                 .get::<smithay::wayland::shell::xdg::XdgToplevelSurfaceData>();
@@ -98,8 +95,7 @@ pub fn app_id_of_toplevel(
                 }
                 None => (None, None),
             }
-        },
-    );
+        });
     app_id
         .filter(|s| !s.is_empty())
         .map(|app_id| AppId::wayland(app_id, title))
@@ -119,7 +115,11 @@ pub fn app_id_of_x11(surface: &smithay::xwayland::X11Surface) -> Option<AppId> {
     }
     let title = {
         let t = surface.title();
-        if t.is_empty() { None } else { Some(t) }
+        if t.is_empty() {
+            None
+        } else {
+            Some(t)
+        }
     };
     Some(AppId::x11(ident, title))
 }
@@ -129,10 +129,7 @@ pub fn app_id_of_x11(surface: &smithay::xwayland::X11Surface) -> Option<AppId> {
 /// Returns `None` when the window carries no usable identifier: such
 /// windows must never participate in placement matching, otherwise two
 /// unidentified windows would steal each other's slots.
-pub fn app_id_for_window(
-    state: &AerowmState,
-    id: aerowm_core::id::WindowId,
-) -> Option<AppId> {
+pub fn app_id_for_window(state: &AerowmState, id: aerowm_core::id::WindowId) -> Option<AppId> {
     if let Some(toplevel) = state.surfaces.get(&id) {
         return app_id_of_toplevel(toplevel);
     }
@@ -174,7 +171,9 @@ pub fn restore_session(state: &mut AerowmState) -> Result<usize, String> {
             ws
         })
         .collect();
-    state.active_ws = session.active_workspace.min(state.workspaces.len().saturating_sub(1));
+    state.active_ws = session
+        .active_workspace
+        .min(state.workspaces.len().saturating_sub(1));
     state.pending_placements = session.pending_placements();
 
     // Focus flags ride along with placements; the active workspace itself
@@ -190,7 +189,17 @@ pub fn restore_session(state: &mut AerowmState) -> Result<usize, String> {
 
 /// Makes the Wayland listener inheritable and re-execs the current
 /// binary. Only returns on failure (the session must already be dumped).
-pub fn exec_restart(wl_fd: RawFd, session_path: &std::path::Path) -> Result<(), String> {
+///
+/// `keep_display` must be true when running with the nested winit backend:
+/// `DISPLAY` then names the *host* X server, which outlives the exec and is
+/// needed to recreate the nesting window. Otherwise `DISPLAY` may point at
+/// our own pre-exec XWayland, which dies with us (the fresh boot re-exports
+/// it when its own XWayland is ready), so it is dropped.
+pub fn exec_restart(
+    wl_fd: RawFd,
+    session_path: &std::path::Path,
+    keep_display: bool,
+) -> Result<(), String> {
     // The listener must survive exec: std sockets are CLOEXEC by default.
     // SAFETY: `wl_fd` is our own open listening socket (recorded at bind
     // time from `AsRawFd`), so borrowing it raw here is sound.
@@ -198,17 +207,16 @@ pub fn exec_restart(wl_fd: RawFd, session_path: &std::path::Path) -> Result<(), 
     rustix::io::fcntl_setfd(borrowed, rustix::io::FdFlags::empty())
         .map_err(|e| format!("clearing CLOEXEC on wayland socket: {e}"))?;
 
-    let exe =
-        std::env::current_exe().map_err(|e| format!("resolving current exe: {e}"))?;
+    let exe = std::env::current_exe().map_err(|e| format!("resolving current exe: {e}"))?;
     let mut cmd = std::process::Command::new(exe);
     // Forward our CLI args verbatim (backend selection, …).
     cmd.args(std::env::args_os().skip(1));
     cmd.env(WAYLAND_FD_ENV, wl_fd.to_string());
     cmd.env(RESTARTED_ENV, "1");
     cmd.env(SESSION_FILE_ENV, session_path);
-    // A stale X11 DISPLAY would point at the pre-exec XWayland, which dies
-    // with us; the fresh boot re-exports it when its own XWayland is ready.
-    cmd.env_remove("DISPLAY");
+    if !keep_display {
+        cmd.env_remove("DISPLAY");
+    }
 
     tracing::info!("hot-restarting via exec (wayland fd={wl_fd})…");
     use std::os::unix::process::CommandExt as _;
@@ -241,8 +249,7 @@ mod tests {
     }
 
     fn test_state() -> AerowmState {
-        let display = wayland_server::Display::<AerowmState>::new()
-            .expect("headless display");
+        let display = wayland_server::Display::<AerowmState>::new().expect("headless display");
         let engine = aerowm_lua::ScriptEngine::new().expect("lua engine");
         AerowmState::new(&display.handle(), engine)
     }
@@ -260,10 +267,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         // SAFETY: test-only env mutation, restored below.
         unsafe {
-            std::env::set_var(
-                SESSION_FILE_ENV,
-                dir.join("session.json").as_os_str(),
-            );
+            std::env::set_var(SESSION_FILE_ENV, dir.join("session.json").as_os_str());
         }
         let path = dump_session(&state).expect("dump");
         assert!(path.exists());
@@ -305,12 +309,14 @@ mod tests {
         };
         // one pending entry waiting for a reconnecting client
         let mut session = session;
-        session.workspaces[0].windows.push(aerowm_core::session::WindowEntry {
-            app: AppId::wayland("kitty", None),
-            floating: true,
-            geo: Some(aerowm_core::geometry::Rect::new(10, 20, 300, 400)),
-            focused: true,
-        });
+        session.workspaces[0]
+            .windows
+            .push(aerowm_core::session::WindowEntry {
+                app: AppId::wayland("kitty", None),
+                floating: true,
+                geo: Some(aerowm_core::geometry::Rect::new(10, 20, 300, 400)),
+                focused: true,
+            });
 
         let dir = std::env::temp_dir().join(format!("aerowm-test-restore-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
