@@ -15,7 +15,7 @@ wayland-client = "0.31"
 calloop = "0.13"
 calloop-wayland-source = "0.3.0"
 serde_json = "1.0.151"
-mlua = { version = "0.12.1", features = ["luau"] }
+mlua = { version = "0.12.1", features = ["vendored", "luau"] }
 chrono = "0.4"
 embedded-graphics = "0.8"
 log = "0.4"
