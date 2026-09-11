@@ -1,12 +1,11 @@
-use smithay::wayland::compositor::{CompositorHandler, CompositorState, CompositorClientState};
-use smithay::wayland::shm::{ShmHandler, ShmState};
-use smithay::wayland::buffer::BufferHandler;
-use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
-use smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer;
-use smithay::reexports::wayland_server::Client;
 use smithay::reexports::wayland_server::backend::{ClientData, ClientId, DisconnectReason};
-use smithay::{delegate_compositor, delegate_shm};
-
+use smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer;
+use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
+use smithay::reexports::wayland_server::Client;
+use smithay::wayland::buffer::BufferHandler;
+use smithay::wayland::compositor::{CompositorClientState, CompositorHandler, CompositorState};
+use smithay::wayland::shm::{ShmHandler, ShmState};
+use smithay::{delegate_compositor, delegate_output, delegate_shm};
 
 use crate::state::AerowmState;
 
@@ -31,7 +30,7 @@ impl CompositorHandler for AerowmState {
     fn compositor_state(&mut self) -> &mut CompositorState {
         &mut self.compositor_state
     }
-    
+
     fn client_compositor_state<'a>(&self, client: &'a Client) -> &'a CompositorClientState {
         // Retrieve the ClientState attached to this client.
         if let Some(state) = client.get_data::<ClientState>() {
@@ -47,7 +46,7 @@ impl CompositorHandler for AerowmState {
             panic!("ClientState not attached to Client")
         }
     }
-    
+
     fn commit(&mut self, surface: &WlSurface) {
         use smithay::backend::renderer::utils::on_commit_buffer_handler;
         use smithay::desktop::layer_map_for_output;
@@ -67,9 +66,7 @@ impl CompositorHandler for AerowmState {
         for output in &outputs {
             let changed = {
                 let mut map = layer_map_for_output(output);
-                let is_layer = map
-                    .layers()
-                    .any(|l| l.wl_surface() == surface);
+                let is_layer = map.layers().any(|l| l.wl_surface() == surface);
                 if is_layer {
                     map.arrange()
                 } else {
@@ -96,3 +93,6 @@ impl ShmHandler for AerowmState {
 
 delegate_compositor!(AerowmState);
 delegate_shm!(AerowmState);
+// Routes wl_output/xdg_output binds through OutputManagerState, which
+// initializes every new instance (geometry, modes, scale, done).
+delegate_output!(AerowmState);

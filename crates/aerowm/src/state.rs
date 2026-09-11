@@ -28,9 +28,7 @@ use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::backend::winit::WinitGraphicsBackend;
 use crate::backend::udev::UdevRuntime;
 use smithay::utils::{Logical, Point, Size, IsAlive, SERIAL_COUNTER};
-use smithay::wayland::output::WlOutputData;
-use smithay::reexports::wayland_server::protocol::wl_output::WlOutput;
-use smithay::reexports::wayland_server::GlobalDispatch;
+use smithay::wayland::output::{OutputHandler, OutputManagerState};
 
 use std::collections::HashMap;
 use aerowm_core::id::WindowId;
@@ -107,6 +105,11 @@ pub struct AerowmState {
     pub subscribers: Vec<UnixStream>,
     pub compositor_state: CompositorState,
     pub shm_state: ShmState,
+    /// Output globals (wl_output + xdg_output) live here: dropping the
+    /// state would unregister them, and per-client binds dispatch through
+    /// it via `delegate_output!` (see handlers).
+    #[allow(dead_code)]
+    pub output_manager_state: OutputManagerState,
     pub xdg_shell_state: XdgShellState,
     // Protocol states below are never read directly: Smithay's delegate
     // macros dispatch through the globals on the DisplayHandle. The fields
@@ -188,6 +191,9 @@ impl AerowmState {
             subscribers: Vec::new(),
             compositor_state: CompositorState::new::<Self>(display_handle),
             shm_state: ShmState::new::<Self>(display_handle, vec![]),
+            output_manager_state: OutputManagerState::new_with_xdg_output::<Self>(
+                display_handle,
+            ),
             xdg_shell_state: XdgShellState::new::<Self>(display_handle),
             session_lock_state: smithay::wayland::session_lock::SessionLockManagerState::new::<Self, _>(display_handle, |_| true),
             is_locked: false,
@@ -1138,15 +1144,6 @@ fn nearest_corner(rect: &CoreRect, cursor_x: f64, cursor_y: f64) -> GrabCorner {
     }
 }
 
-impl GlobalDispatch<WlOutput, WlOutputData> for AerowmState {
-    fn bind(
-        _state: &mut Self,
-        _handle: &DisplayHandle,
-        _client: &wayland_server::Client,
-        _resource: wayland_server::New<WlOutput>,
-        _global_data: &WlOutputData,
-        _data_init: &mut wayland_server::DataInit<'_, Self>,
-    ) {
-        // Output binding is handled by the Output::create_global
-    }
-}
+/// Default `OutputHandler`: geometry/mode/done on bind are sent by
+/// Smithay's `OutputManagerState`; we track nothing extra per bind.
+impl OutputHandler for AerowmState {}
