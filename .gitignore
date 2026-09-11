@@ -1,5 +1,9 @@
 /target
 /docs/
+# Local makepkg outputs: source clones, package dirs and built packages.
+/src/
+/pkg/
+*.pkg.tar.zst*
 /.gemini
 AGENTS.md
 GEMINI.md
