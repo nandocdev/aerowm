@@ -1,6 +1,6 @@
 # Maintainer: Fernando Castillo <fdocst@gmail.com>
 pkgname=aerowm-git
-pkgver=0.1.0
+pkgver=0.1.0.r31.6ced9bb
 pkgrel=1
 pkgdesc="High-performance Wayland dynamic tiling window manager in Rust + Luau"
 arch=('x86_64' 'aarch64')
@@ -8,6 +8,11 @@ url="https://github.com/nandocdev/aerowm"
 license=('MIT')
 depends=('wayland' 'libxkbcommon' 'systemd' 'pixman' 'libinput' 'seatd')
 makedepends=('cargo' 'git')
+# The vendored Luau C++ (via mlua-sys) is built with makepkg's CFLAGS, and
+# GCC `-flto` objects there cannot be consumed by the final link (undefined
+# `lua_*` symbols with lld). Build that C code without LTO; Rust LTO is
+# unaffected (none configured).
+options=('!lto')
 provides=('aerowm')
 conflicts=('aerowm')
 source=("git+https://github.com/nandocdev/aerowm.git")
