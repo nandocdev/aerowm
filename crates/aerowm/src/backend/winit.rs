@@ -1,15 +1,18 @@
-use calloop::{timer::{Timer, TimeoutAction}, EventLoop};
-use smithay::backend::input::InputEvent;
-use smithay::backend::winit::{self, WinitEvent};
-use smithay::backend::renderer::gles::GlesRenderer;
-use smithay::backend::renderer::damage::OutputDamageTracker;
-use smithay::output::{Output, PhysicalProperties};
-use smithay::utils::{Point, Size, Transform, Physical};
-use wayland_server::Display;
-use crate::state::AerowmState;
 use crate::input as input_dispatch;
-use tracing::{info, warn};
+use crate::state::AerowmState;
+use calloop::{
+    timer::{TimeoutAction, Timer},
+    EventLoop,
+};
+use smithay::backend::input::InputEvent;
+use smithay::backend::renderer::damage::OutputDamageTracker;
+use smithay::backend::renderer::gles::GlesRenderer;
+use smithay::backend::winit::{self, WinitEvent};
+use smithay::output::{Output, PhysicalProperties};
+use smithay::utils::{Physical, Point, Size, Transform};
 use std::time::Duration;
+use tracing::{info, warn};
+use wayland_server::Display;
 
 pub fn init_winit(
     event_loop: &mut EventLoop<AerowmState>,
@@ -17,10 +20,10 @@ pub fn init_winit(
     state: &mut AerowmState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("Initializing Winit Backend (Nested Wayland)");
-    
+
     // Initialize the Smithay winit backend specifying the GlesRenderer for hardware acceleration
     let (backend, mut winit) = winit::init::<GlesRenderer>().map_err(|e| e.to_string())?;
-    
+
     // Create output
     let output = Output::new(
         "winit".to_string(),
@@ -31,7 +34,7 @@ pub fn init_winit(
             model: "Winit".to_string(),
         },
     );
-    
+
     // Set up output mode (will be updated on resize)
     let mode = smithay::output::Mode {
         size: Size::from((1920, 1080)),
@@ -39,32 +42,33 @@ pub fn init_winit(
     };
     output.add_mode(mode);
     output.set_preferred(mode);
-    
+
     // Create global for the output
     output.create_global::<AerowmState>(&display.handle());
-    
+
     // Initialize damage tracker from output
     let damage_tracker = OutputDamageTracker::from_output(&output);
-    
+
     // Store in state
     state.backend = Some(backend);
     state.output = Some(output.clone());
     state.damage_tracker = Some(damage_tracker);
     state.output_size = Some(mode.size);
-    
+
     // Map output in space at (0, 0)
     state.space.map_output(&output, Point::from((0, 0)));
-    
+
     // Apply initial layout
     state.apply_layout();
-    
+
     info!("Winit backend initialized with output: {}", output.name());
-    
+
     // Drive the winit event loop at ~60fps using Calloop's timer source
     let timer = Timer::immediate();
-    event_loop.handle().insert_source(timer, move |_, _, state| {
-        winit.dispatch_new_events(|event| {
-            match event {
+    event_loop
+        .handle()
+        .insert_source(timer, move |_, _, state| {
+            winit.dispatch_new_events(|event| match event {
                 WinitEvent::Resized { size, .. } => {
                     info!("Window resized to {:?}", size);
                     handle_resize(state, size);
@@ -92,13 +96,13 @@ pub fn init_winit(
                     _ => {}
                 },
                 _ => {}
-            }
-        });
+            });
 
-        // Continue running the timer every 16ms (~60 FPS)
-        TimeoutAction::ToDuration(Duration::from_millis(16))
-    }).map_err(|e| format!("Timer error: {}", e))?;
-    
+            // Continue running the timer every 16ms (~60 FPS)
+            TimeoutAction::ToDuration(Duration::from_millis(16))
+        })
+        .map_err(|e| format!("Timer error: {}", e))?;
+
     Ok(())
 }
 
@@ -112,11 +116,11 @@ fn handle_resize(state: &mut AerowmState, size: Size<i32, Physical>) {
         output.set_preferred(mode);
         output.change_current_state(Some(mode), None, None, None);
     }
-    
+
     if let Some(damage_tracker) = &mut state.damage_tracker {
         *damage_tracker = OutputDamageTracker::new(size, 1.0, Transform::Normal);
     }
-    
+
     state.output_size = Some(size);
     if let Some(output) = &state.output {
         state.space.map_output(output, Point::from((0, 0)));
@@ -127,14 +131,18 @@ fn handle_resize(state: &mut AerowmState, size: Size<i32, Physical>) {
 fn render_frame(state: &mut AerowmState) {
     // Clean up dead windows first (before borrowing backend/output)
     state.cleanup_dead_windows();
-    
-    let Some(backend) = &mut state.backend else { return };
+
+    let Some(backend) = &mut state.backend else {
+        return;
+    };
     let Some(output) = &state.output else { return };
-    let Some(damage_tracker) = &mut state.damage_tracker else { return };
-    
+    let Some(damage_tracker) = &mut state.damage_tracker else {
+        return;
+    };
+
     // Get buffer age for damage tracking before binding
     let age = backend.buffer_age().unwrap_or(0);
-    
+
     // Get render elements from space (need renderer for this)
     let (renderer, mut framebuffer) = match backend.bind() {
         Ok(fb) => fb,
@@ -143,26 +151,32 @@ fn render_frame(state: &mut AerowmState) {
             return;
         }
     };
-    
+
     let mut lock_elements = Vec::new();
     if state.is_locked {
         if let Some(lock_surface) = state.lock_surfaces.first() {
-            use smithay::backend::renderer::element::surface::{render_elements_from_surface_tree, WaylandSurfaceRenderElement};
+            use smithay::backend::renderer::element::surface::{
+                render_elements_from_surface_tree, WaylandSurfaceRenderElement,
+            };
             use smithay::backend::renderer::element::Kind;
-            let mut tree = render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
-                renderer,
-                lock_surface.wl_surface(),
-                (0, 0),
-                1.0,
-                1.0,
-                Kind::Unspecified,
-            );
+            let mut tree =
+                render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
+                    renderer,
+                    lock_surface.wl_surface(),
+                    (0, 0),
+                    1.0,
+                    1.0,
+                    Kind::Unspecified,
+                );
             lock_elements.append(&mut tree);
         }
     }
 
     let elements = if !state.is_locked {
-        match state.space.render_elements_for_output(renderer, output, 1.0) {
+        match state
+            .space
+            .render_elements_for_output(renderer, output, 1.0)
+        {
             Ok(e) => e,
             Err(e) => {
                 warn!("Failed to get render elements: {}", e);
@@ -172,41 +186,37 @@ fn render_frame(state: &mut AerowmState) {
     } else {
         Vec::new() // We can't use SpaceRenderElements when locked unless we define a macro.
     };
-    
+
     // Render with damage tracking
     let clear_color = [0.0, 0.0, 0.0, 1.0];
     let render_result = if state.is_locked {
-        damage_tracker.render_output(
-            renderer,
-            &mut framebuffer,
-            age,
-            &lock_elements,
-            clear_color,
-        )
+        damage_tracker.render_output(renderer, &mut framebuffer, age, &lock_elements, clear_color)
     } else {
-        damage_tracker.render_output(
-            renderer,
-            &mut framebuffer,
-            age,
-            &elements,
-            clear_color,
-        )
+        damage_tracker.render_output(renderer, &mut framebuffer, age, &elements, clear_color)
     };
-    
+
     // Screenshots
     if state.take_screenshot {
         state.take_screenshot = false;
         if let Some(size) = state.output_size {
-            let rect = smithay::utils::Rectangle::<i32, smithay::utils::Buffer>::from_size(smithay::utils::Size::from((size.w, size.h)));
-            use smithay::backend::renderer::ExportMem;
+            let rect = smithay::utils::Rectangle::<i32, smithay::utils::Buffer>::from_size(
+                smithay::utils::Size::from((size.w, size.h)),
+            );
             use smithay::backend::allocator::Fourcc;
+            use smithay::backend::renderer::ExportMem;
             if let Ok(mapping) = renderer.copy_framebuffer(&framebuffer, rect, Fourcc::Abgr8888) {
                 if let Ok(data) = renderer.map_texture(&mapping) {
                     let data_vec = data.to_vec();
                     let w = size.w as u32;
                     let h = size.h as u32;
                     std::thread::spawn(move || {
-                        let path = format!("/tmp/screenshot-{}.png", std::time::UNIX_EPOCH.elapsed().unwrap_or_default().as_secs());
+                        let path = format!(
+                            "/tmp/screenshot-{}.png",
+                            std::time::UNIX_EPOCH
+                                .elapsed()
+                                .unwrap_or_default()
+                                .as_secs()
+                        );
                         if let Some(buf) = image::RgbaImage::from_raw(w, h, data_vec) {
                             let _ = image::save_buffer(&path, &buf, w, h, image::ColorType::Rgba8);
                         }
@@ -217,12 +227,16 @@ fn render_frame(state: &mut AerowmState) {
     }
 
     // Extract damage before dropping framebuffer
-    let damage = render_result.as_ref().ok().and_then(|r| r.damage).map(|v| v.clone());
-    
+    let damage = render_result
+        .as_ref()
+        .ok()
+        .and_then(|r| r.damage)
+        .map(|v| v.clone());
+
     // Drop framebuffer and renderer
     drop(framebuffer);
     let _ = renderer;
-    
+
     match render_result {
         Ok(_) => {
             // Submit the frame with damage
@@ -234,13 +248,13 @@ fn render_frame(state: &mut AerowmState) {
             warn!("Failed to render output: {}", e);
         }
     }
-    
+
     // Send frame callbacks
     let now = Duration::from_millis(0);
     state.space.elements().for_each(|window| {
         window.send_frame(output, now, None, |_, _| Some(output.clone()));
     });
-    
+
     state.space.refresh();
     output.cleanup();
 }
