@@ -82,9 +82,7 @@ impl AerowmState {
                         .get(&id)
                         .map(|r| Point::from((r.origin.x, r.origin.y)))
                         .unwrap_or(Point::from((0, 0)));
-                    if let Some(pinned) = self.float_geo.get(&id).copied() {
-                        self.configure_window_size(id, &pinned);
-                    }
+                    self.push_pinned_geometry(id);
                     self.space.map_element(window, loc, false);
                 } else {
                     self.space.map_element(window, (0, 0), false);

@@ -135,24 +135,8 @@ impl AerowmState {
                         false,
                     );
                 }
-                if let Some(surface) = self.surfaces.get(&id) {
-                    surface.with_pending_state(|s| {
-                        s.size =
-                            Some((resized.size.width as i32, resized.size.height as i32).into());
-                    });
-                    surface.send_configure();
-                }
-                #[cfg(feature = "xwayland")]
-                if !self.surfaces.contains_key(&id)
-                    && let Some(x11) = self.x11_surfaces.get(&id)
-                {
-                    let geo = smithay::utils::Rectangle::new(
-                        (resized.origin.x, resized.origin.y).into(),
-                        (resized.size.width as i32, resized.size.height as i32).into(),
-                    );
-                    if let Err(e) = x11.configure(Some(geo)) {
-                        tracing::warn!("failed to configure X11 window: {e:?}");
-                    }
+                if let Some(surface) = self.configurable(id) {
+                    surface.push_geometry(resized);
                 }
                 self.float_geo.insert(id, resized);
             }
