@@ -6,6 +6,7 @@
 //! client geometry: visible and pointer-interactive, but outside focus
 //! and layouts.
 
+use smithay::delegate_xwayland_shell;
 use smithay::desktop::Window;
 use smithay::utils::{Logical, Rectangle};
 use smithay::wayland::xwayland_shell::{XWaylandShellHandler, XWaylandShellState};
@@ -13,7 +14,6 @@ use smithay::xwayland::{
     X11Surface, X11Wm, XwmHandler,
     xwm::{Reorder, ResizeEdge, WmWindowProperty, X11Window, XwmId},
 };
-use smithay::delegate_xwayland_shell;
 
 use aerowm_core::geometry::Rect as CoreRect;
 use aerowm_core::id::WindowId;
@@ -85,10 +85,10 @@ impl XwmHandler for AerowmState {
             self.space.map_element(w, (0, 0), true);
         }
         // Restored session placement (no-op unless a pending entry matches).
-        if let Some(app) = app.clone() {
-            if let Some(id) = id_for_x11(self, &window) {
-                self.apply_pending_placement(id, &app, prev_focus);
-            }
+        if let Some(app) = app.clone()
+            && let Some(id) = id_for_x11(self, &window)
+        {
+            self.apply_pending_placement(id, &app, prev_focus);
         }
 
         if let Some(id) = id_for_x11(self, &window) {
@@ -151,9 +151,13 @@ impl XwmHandler for AerowmState {
                 .get(&id)
                 .copied()
                 .unwrap_or(CoreRect::new(0, 0, 800, 600));
-            let nw = w.map(|w| w.max(1) as i32).unwrap_or(base.size.width as i32)
+            let nw = w
+                .map(|w| w.max(1) as i32)
+                .unwrap_or(base.size.width as i32)
                 .max(MIN_FLOAT_W);
-            let nh = h.map(|h| h.max(1) as i32).unwrap_or(base.size.height as i32)
+            let nh = h
+                .map(|h| h.max(1) as i32)
+                .unwrap_or(base.size.height as i32)
                 .max(MIN_FLOAT_H);
             let nx = x.unwrap_or(base.origin.x);
             let ny = y.unwrap_or(base.origin.y);
@@ -164,10 +168,8 @@ impl XwmHandler for AerowmState {
             if let Some(w) = window_for_xid(self, window.window_id()) {
                 self.space.map_element(w, geo.loc, false);
             }
-            self.float_geo.insert(
-                id,
-                CoreRect::new(nx, ny, nw as u32, nh as u32),
-            );
+            self.float_geo
+                .insert(id, CoreRect::new(nx, ny, nw as u32, nh as u32));
         } else {
             // Tiled: the layout is authoritative; re-assert it.
             self.apply_layout();
@@ -198,11 +200,7 @@ impl XwmHandler for AerowmState {
                     self.space.map_element(w, geometry.loc, false);
                 }
             }
-        } else if self
-            .override_redirect
-            .iter()
-            .any(|s| s.window_id() == wid)
-        {
+        } else if self.override_redirect.iter().any(|s| s.window_id() == wid) {
             // Unmanaged windows follow client geometry directly.
             if let Some(w) = window_for_xid(self, wid) {
                 self.space.map_element(w, geometry.loc, false);

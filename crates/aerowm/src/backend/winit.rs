@@ -1,8 +1,8 @@
 use crate::input as input_dispatch;
 use crate::state::AerowmState;
 use calloop::{
-    timer::{TimeoutAction, Timer},
     EventLoop,
+    timer::{TimeoutAction, Timer},
 };
 use smithay::backend::input::InputEvent;
 use smithay::backend::renderer::damage::OutputDamageTracker;
@@ -153,23 +153,23 @@ fn render_frame(state: &mut AerowmState) {
     };
 
     let mut lock_elements = Vec::new();
-    if state.is_locked {
-        if let Some(lock_surface) = state.lock_surfaces.first() {
-            use smithay::backend::renderer::element::surface::{
-                render_elements_from_surface_tree, WaylandSurfaceRenderElement,
-            };
-            use smithay::backend::renderer::element::Kind;
-            let mut tree =
-                render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
-                    renderer,
-                    lock_surface.wl_surface(),
-                    (0, 0),
-                    1.0,
-                    1.0,
-                    Kind::Unspecified,
-                );
-            lock_elements.append(&mut tree);
-        }
+    if state.is_locked
+        && let Some(lock_surface) = state.lock_surfaces.first()
+    {
+        use smithay::backend::renderer::element::Kind;
+        use smithay::backend::renderer::element::surface::{
+            WaylandSurfaceRenderElement, render_elements_from_surface_tree,
+        };
+        let mut tree =
+            render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
+                renderer,
+                lock_surface.wl_surface(),
+                (0, 0),
+                1.0,
+                1.0,
+                Kind::Unspecified,
+            );
+        lock_elements.append(&mut tree);
     }
 
     let elements = if !state.is_locked {
@@ -204,34 +204,30 @@ fn render_frame(state: &mut AerowmState) {
             );
             use smithay::backend::allocator::Fourcc;
             use smithay::backend::renderer::ExportMem;
-            if let Ok(mapping) = renderer.copy_framebuffer(&framebuffer, rect, Fourcc::Abgr8888) {
-                if let Ok(data) = renderer.map_texture(&mapping) {
-                    let data_vec = data.to_vec();
-                    let w = size.w as u32;
-                    let h = size.h as u32;
-                    std::thread::spawn(move || {
-                        let path = format!(
-                            "/tmp/screenshot-{}.png",
-                            std::time::UNIX_EPOCH
-                                .elapsed()
-                                .unwrap_or_default()
-                                .as_secs()
-                        );
-                        if let Some(buf) = image::RgbaImage::from_raw(w, h, data_vec) {
-                            let _ = image::save_buffer(&path, &buf, w, h, image::ColorType::Rgba8);
-                        }
-                    });
-                }
+            if let Ok(mapping) = renderer.copy_framebuffer(&framebuffer, rect, Fourcc::Abgr8888)
+                && let Ok(data) = renderer.map_texture(&mapping)
+            {
+                let data_vec = data.to_vec();
+                let w = size.w as u32;
+                let h = size.h as u32;
+                std::thread::spawn(move || {
+                    let path = format!(
+                        "/tmp/screenshot-{}.png",
+                        std::time::UNIX_EPOCH
+                            .elapsed()
+                            .unwrap_or_default()
+                            .as_secs()
+                    );
+                    if let Some(buf) = image::RgbaImage::from_raw(w, h, data_vec) {
+                        let _ = image::save_buffer(&path, &buf, w, h, image::ColorType::Rgba8);
+                    }
+                });
             }
         }
     }
 
     // Extract damage before dropping framebuffer
-    let damage = render_result
-        .as_ref()
-        .ok()
-        .and_then(|r| r.damage)
-        .map(|v| v.clone());
+    let damage = render_result.as_ref().ok().and_then(|r| r.damage).cloned();
 
     // Drop framebuffer and renderer
     drop(framebuffer);

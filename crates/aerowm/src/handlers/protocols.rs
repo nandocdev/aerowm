@@ -19,14 +19,14 @@ impl XdgDecorationHandler for AerowmState {
         });
         toplevel.send_configure();
     }
-    
+
     fn request_mode(&mut self, toplevel: ToplevelSurface, _mode: Mode) {
         toplevel.with_pending_state(|state| {
             state.decoration_mode = Some(Mode::ClientSide);
         });
         toplevel.send_configure();
     }
-    
+
     fn unset_mode(&mut self, toplevel: ToplevelSurface) {
         toplevel.with_pending_state(|state| {
             state.decoration_mode = Some(Mode::ClientSide);
@@ -38,4 +38,3 @@ impl XdgDecorationHandler for AerowmState {
 delegate_fractional_scale!(AerowmState);
 delegate_viewporter!(AerowmState);
 delegate_xdg_decoration!(AerowmState);
-

@@ -1,7 +1,7 @@
+use smithay::reexports::wayland_server::Client;
 use smithay::reexports::wayland_server::backend::{ClientData, ClientId, DisconnectReason};
 use smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
-use smithay::reexports::wayland_server::Client;
 use smithay::wayland::buffer::BufferHandler;
 use smithay::wayland::compositor::{CompositorClientState, CompositorHandler, CompositorState};
 use smithay::wayland::shm::{ShmHandler, ShmState};
@@ -9,6 +9,7 @@ use smithay::{delegate_compositor, delegate_output, delegate_shm};
 
 use crate::state::AerowmState;
 
+#[derive(Default)]
 pub struct ClientState {
     pub compositor_state: CompositorClientState,
 }
@@ -16,14 +17,6 @@ pub struct ClientState {
 impl ClientData for ClientState {
     fn initialized(&self, _client_id: ClientId) {}
     fn disconnected(&self, _client_id: ClientId, _reason: DisconnectReason) {}
-}
-
-impl Default for ClientState {
-    fn default() -> Self {
-        Self {
-            compositor_state: CompositorClientState::default(),
-        }
-    }
 }
 
 impl CompositorHandler for AerowmState {
@@ -67,11 +60,7 @@ impl CompositorHandler for AerowmState {
             let changed = {
                 let mut map = layer_map_for_output(output);
                 let is_layer = map.layers().any(|l| l.wl_surface() == surface);
-                if is_layer {
-                    map.arrange()
-                } else {
-                    false
-                }
+                if is_layer { map.arrange() } else { false }
             };
             if changed {
                 self.apply_layout();

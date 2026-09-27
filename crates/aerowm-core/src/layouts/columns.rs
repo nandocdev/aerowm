@@ -28,13 +28,13 @@ impl Layout for Columns {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_columns_layout() {
         let layout = Columns;
         let area = Rect::new(0, 0, 1920, 1080);
         let rects = layout.apply(area, 3);
-        
+
         assert_eq!(rects.len(), 3);
         assert_eq!(rects[0], Rect::new(0, 0, 640, 1080));
         assert_eq!(rects[1], Rect::new(640, 0, 640, 1080));

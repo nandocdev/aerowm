@@ -10,7 +10,7 @@ pub struct WindowRules {
 }
 
 /// The central Lua(u) scripting engine for AeroWM.
-/// It wraps the Luau VM, injects the secure API bindings, 
+/// It wraps the Luau VM, injects the secure API bindings,
 /// and handles the evaluation of user configurations.
 pub struct ScriptEngine {
     lua: Lua,
@@ -21,10 +21,10 @@ impl ScriptEngine {
     pub fn new() -> Result<Self> {
         // Creates a new Luau state
         let lua = Lua::new();
-        
+
         // Expose a global table for the AeroWM API
         let aerowm_table = lua.create_table()?;
-        
+
         // Basic logging binding from Luau to Rust stdout
         let log_fn = lua.create_function(|_, msg: String| {
             println!("[AeroWM-Luau] {}", msg);
@@ -41,12 +41,20 @@ impl ScriptEngine {
                         .arg("-c")
                         .arg(cmd_str.as_ref())
                         .spawn()
-                        .map_err(|e| mlua::Error::RuntimeError(format!("Failed to spawn {}: {}", cmd_str.as_ref(), e)))?;
+                        .map_err(|e| {
+                            mlua::Error::RuntimeError(format!(
+                                "Failed to spawn {}: {}",
+                                cmd_str.as_ref(),
+                                e
+                            ))
+                        })?;
                 }
                 mlua::Value::Table(t) => {
                     let len = t.len().unwrap_or(0);
                     if len == 0 {
-                        return Err(mlua::Error::RuntimeError("Empty array passed to spawn".into()));
+                        return Err(mlua::Error::RuntimeError(
+                            "Empty array passed to spawn".into(),
+                        ));
                     }
                     let prog: String = t.get(1)?;
                     let mut cmd = Command::new(&prog);
@@ -54,10 +62,15 @@ impl ScriptEngine {
                         let arg: String = t.get(i)?;
                         cmd.arg(arg);
                     }
-                    cmd.spawn()
-                        .map_err(|e| mlua::Error::RuntimeError(format!("Failed to spawn {}: {}", prog, e)))?;
+                    cmd.spawn().map_err(|e| {
+                        mlua::Error::RuntimeError(format!("Failed to spawn {}: {}", prog, e))
+                    })?;
                 }
-                _ => return Err(mlua::Error::RuntimeError("spawn expects a string or table of strings".into())),
+                _ => {
+                    return Err(mlua::Error::RuntimeError(
+                        "spawn expects a string or table of strings".into(),
+                    ));
+                }
             }
             Ok(())
         })?;
@@ -74,7 +87,7 @@ impl ScriptEngine {
         // Table for user-defined keybindings
         let binds_table = lua.create_table()?;
         aerowm_table.set("binds", binds_table)?;
-        
+
         // Table dedicated to user-defined lifecycle hooks
         let hooks_table = lua.create_table()?;
         aerowm_table.set("hooks", hooks_table)?;
@@ -103,10 +116,10 @@ impl ScriptEngine {
 
     /// Try to locate and load the default configuration file.
     pub fn load_default_config(&self) -> Result<()> {
-        if let Some(path) = Self::default_config_path() {
-            if path.exists() {
-                return self.load_config_file(path);
-            }
+        if let Some(path) = Self::default_config_path()
+            && path.exists()
+        {
+            return self.load_config_file(path);
         }
         Ok(())
     }
@@ -115,7 +128,7 @@ impl ScriptEngine {
     pub fn load_config_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let source = std::fs::read_to_string(path)
             .map_err(|e| mlua::Error::RuntimeError(format!("Failed to read config file: {}", e)))?;
-        
+
         self.load_config_string(&source)
     }
 
@@ -182,7 +195,7 @@ impl ScriptEngine {
     /// Iterates through `aerowm.rules` and merges matches.
     pub fn evaluate_rules(&self, app_id: &str, title: Option<&str>) -> WindowRules {
         let mut result = WindowRules::default();
-        
+
         let globals = self.lua.globals();
         let aerowm: Table = match globals.get("aerowm") {
             Ok(t) => t,
@@ -192,41 +205,43 @@ impl ScriptEngine {
             Ok(t) => t,
             Err(_) => return result,
         };
-        
+
         for pair in rules.pairs::<mlua::Integer, Table>() {
             let (_, rule) = match pair {
                 Ok(p) => p,
                 Err(_) => continue,
             };
-            
+
             let match_tbl: Table = match rule.get("match") {
                 Ok(t) => t,
                 Err(_) => continue,
             };
-            
+
             let rule_class: Option<String> = match_tbl.get("class").ok();
             let rule_title: Option<String> = match_tbl.get("title").ok();
-            
-            let class_match = rule_class.map_or(true, |c| c == app_id);
-            let title_match = rule_title.map_or(true, |t| title.map_or(false, |title| title.contains(&t)));
-            
-            if class_match && title_match {
-                if let Ok(set_tbl) = rule.get::<Table>("set") {
-                    // Absent key must stay `None` (a missing `floating`
-                    // is not `false`): use Option so Nil maps to None.
-                    if let Ok(Some(floating)) = set_tbl.get::<Option<bool>>("floating") {
-                        result.floating = Some(floating);
-                    }
-                    if let Ok(Some(sp)) = set_tbl.get::<Option<bool>>("scratchpad") {
-                        result.scratchpad = Some(sp);
-                    }
-                    if let Ok(ws) = set_tbl.get::<usize>("workspace") {
-                        result.workspace = Some(ws);
-                    }
+
+            let class_match = rule_class.is_none_or(|c| c == app_id);
+            let title_match =
+                rule_title.is_none_or(|t| title.is_some_and(|title| title.contains(&t)));
+
+            if class_match
+                && title_match
+                && let Ok(set_tbl) = rule.get::<Table>("set")
+            {
+                // Absent key must stay `None` (a missing `floating`
+                // is not `false`): use Option so Nil maps to None.
+                if let Ok(Some(floating)) = set_tbl.get::<Option<bool>>("floating") {
+                    result.floating = Some(floating);
+                }
+                if let Ok(Some(sp)) = set_tbl.get::<Option<bool>>("scratchpad") {
+                    result.scratchpad = Some(sp);
+                }
+                if let Ok(ws) = set_tbl.get::<usize>("workspace") {
+                    result.workspace = Some(ws);
                 }
             }
         }
-        
+
         result
     }
 
@@ -235,13 +250,11 @@ impl ScriptEngine {
     pub fn get_workspaces(&self) -> Vec<String> {
         let mut result = Vec::new();
         let globals = self.lua.globals();
-        if let Ok(aerowm) = globals.get::<Table>("aerowm") {
-            if let Ok(ws_table) = aerowm.get::<Table>("workspaces") {
-                for pair in ws_table.pairs::<mlua::Integer, String>() {
-                    if let Ok((_, name)) = pair {
-                        result.push(name);
-                    }
-                }
+        if let Ok(aerowm) = globals.get::<Table>("aerowm")
+            && let Ok(ws_table) = aerowm.get::<Table>("workspaces")
+        {
+            for (_, name) in ws_table.pairs::<mlua::Integer, String>().flatten() {
+                result.push(name);
             }
         }
         if result.is_empty() {
@@ -254,25 +267,29 @@ impl ScriptEngine {
 
     pub fn get_gaps(&self) -> (u32, u32) {
         let globals = self.lua.globals();
-        if let Ok(aerowm) = globals.get::<mlua::Table>("aerowm") {
-            if let Ok(gaps) = aerowm.get::<mlua::Table>("gaps") {
-                let inner = gaps.get::<u32>("inner").unwrap_or(0);
-                let outer = gaps.get::<u32>("outer").unwrap_or(0);
-                return (inner, outer);
-            }
+        if let Ok(aerowm) = globals.get::<mlua::Table>("aerowm")
+            && let Ok(gaps) = aerowm.get::<mlua::Table>("gaps")
+        {
+            let inner = gaps.get::<u32>("inner").unwrap_or(0);
+            let outer = gaps.get::<u32>("outer").unwrap_or(0);
+            return (inner, outer);
         }
         (0, 0)
     }
 
     pub fn get_borders(&self) -> (u32, String, String) {
         let globals = self.lua.globals();
-        if let Ok(aerowm) = globals.get::<mlua::Table>("aerowm") {
-            if let Ok(borders) = aerowm.get::<mlua::Table>("borders") {
-                let width = borders.get::<u32>("width").unwrap_or(0);
-                let active = borders.get::<String>("active").unwrap_or_else(|_| "0xFFFFFF".to_string());
-                let inactive = borders.get::<String>("inactive").unwrap_or_else(|_| "0x444444".to_string());
-                return (width, active, inactive);
-            }
+        if let Ok(aerowm) = globals.get::<mlua::Table>("aerowm")
+            && let Ok(borders) = aerowm.get::<mlua::Table>("borders")
+        {
+            let width = borders.get::<u32>("width").unwrap_or(0);
+            let active = borders
+                .get::<String>("active")
+                .unwrap_or_else(|_| "0xFFFFFF".to_string());
+            let inactive = borders
+                .get::<String>("inactive")
+                .unwrap_or_else(|_| "0x444444".to_string());
+            return (width, active, inactive);
         }
         (0, "0xFFFFFF".to_string(), "0x444444".to_string())
     }
@@ -294,19 +311,23 @@ mod tests {
     #[test]
     fn test_engine_initialization() {
         let engine = ScriptEngine::new().expect("Failed to init engine");
-        assert!(engine.load_config_string("aerowm.log('Hello from Luau')").is_ok());
+        assert!(
+            engine
+                .load_config_string("aerowm.log('Hello from Luau')")
+                .is_ok()
+        );
     }
 
     #[test]
     fn test_hooks_registration() {
         let engine = ScriptEngine::new().unwrap();
-        
+
         let config = r#"
             aerowm.hooks.window_opened = function()
                 aerowm.log("Hook: window_opened executed successfully!")
             end
         "#;
-        
+
         engine.load_config_string(config).unwrap();
         assert!(engine.emit_hook("window_opened").is_ok());
         assert!(engine.emit_hook("unregistered_hook").is_ok());
@@ -358,11 +379,11 @@ mod tests {
             })
         "#;
         engine.load_config_string(config).unwrap();
-        
+
         let r1 = engine.evaluate_rules("kitty", None);
         assert_eq!(r1.floating, Some(true));
         assert_eq!(r1.workspace, Some(3));
-        
+
         let r2 = engine.evaluate_rules("firefox", Some("YouTube - Mozilla Firefox"));
         assert_eq!(r2.workspace, Some(4));
         assert_eq!(r2.floating, None);

@@ -12,7 +12,9 @@ mod common;
 use common::{Act, ActResult, Harness};
 
 fn xwayland_present() -> bool {
-    std::env::var_os("PATH").map(|paths| std::env::split_paths(&paths).any(|p| p.join("Xwayland").is_file())).unwrap_or(false)
+    std::env::var_os("PATH")
+        .map(|paths| std::env::split_paths(&paths).any(|p| p.join("Xwayland").is_file()))
+        .unwrap_or(false)
 }
 
 #[test]

@@ -91,8 +91,7 @@ impl SessionState {
     /// Parses and validates a session file. Rejects unknown versions and
     /// clamps the active workspace index into range.
     pub fn from_json(raw: &str) -> Result<Self, SessionError> {
-        let mut state: SessionState =
-            serde_json::from_str(raw).map_err(SessionError::Malformed)?;
+        let mut state: SessionState = serde_json::from_str(raw).map_err(SessionError::Malformed)?;
         if state.version != SESSION_VERSION {
             return Err(SessionError::UnsupportedVersion(state.version));
         }
@@ -149,7 +148,10 @@ impl std::fmt::Display for SessionError {
         match self {
             SessionError::Malformed(e) => write!(f, "malformed session file: {e}"),
             SessionError::UnsupportedVersion(v) => {
-                write!(f, "unsupported session version {v} (expected {SESSION_VERSION})")
+                write!(
+                    f,
+                    "unsupported session version {v} (expected {SESSION_VERSION})"
+                )
             }
             SessionError::Empty => write!(f, "session file has no workspaces"),
         }

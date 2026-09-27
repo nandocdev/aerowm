@@ -42,9 +42,11 @@ impl Dispatch<WlRegistry, ()> for Env {
     ) {
         use wayland_client::protocol::wl_registry::Event::*;
         match event {
-            Global { name, interface, version } => {
-                state.globals.push((name, interface, version))
-            }
+            Global {
+                name,
+                interface,
+                version,
+            } => state.globals.push((name, interface, version)),
             GlobalRemove { name } => state.globals.retain(|(n, _, _)| *n != name),
             _ => {}
         }
@@ -144,10 +146,7 @@ impl Win {
         self.toplevel.destroy();
         self.xdg_surface.destroy();
         self.surface.destroy();
-        client
-            .env
-            .surfaces
-            .retain(|s| s != &self.surface);
+        client.env.surfaces.retain(|s| s != &self.surface);
         client.settle();
     }
 }
@@ -181,11 +180,16 @@ impl TestClient {
         let compositor: WlCompositor =
             registry.bind::<WlCompositor, (), Env>(name, version.min(6), &qh, ());
         let (name, version) = env.find("xdg_wm_base").expect("xdg_wm_base missing");
-        let wm_base: XdgWmBase =
-            registry.bind::<XdgWmBase, (), Env>(name, version.min(3), &qh, ());
+        let wm_base: XdgWmBase = registry.bind::<XdgWmBase, (), Env>(name, version.min(3), &qh, ());
         queue.roundtrip(&mut env).expect("bind roundtrip");
 
-        Self { queue, qh, compositor, wm_base, env }
+        Self {
+            queue,
+            qh,
+            compositor,
+            wm_base,
+            env,
+        }
     }
 
     /// Creates, configures and commits a toplevel; pumps until the
@@ -199,14 +203,20 @@ impl TestClient {
         surface.commit();
         self.env.surfaces.push(surface.clone());
         self.settle();
-        Win { surface, xdg_surface, toplevel }
+        Win {
+            surface,
+            xdg_surface,
+            toplevel,
+        }
     }
 
     /// Pumps the client side until the server handshake settles
     /// (configure → ack → commit roundtrips).
     pub fn settle(&mut self) {
         for _ in 0..4 {
-            self.queue.roundtrip(&mut self.env).expect("settle roundtrip");
+            self.queue
+                .roundtrip(&mut self.env)
+                .expect("settle roundtrip");
         }
     }
 

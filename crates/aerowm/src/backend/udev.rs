@@ -17,7 +17,9 @@ use smithay::backend::allocator::{
     Fourcc,
     gbm::{GbmAllocator, GbmBufferFlags, GbmDevice},
 };
-use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmNode, GbmBufferedSurface};
+use smithay::backend::drm::{
+    DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmNode, GbmBufferedSurface,
+};
 use smithay::backend::egl::{EGLContext, EGLDisplay};
 use smithay::backend::libinput::{LibinputInputBackend, LibinputSessionInterface};
 use smithay::backend::renderer::{
@@ -28,7 +30,7 @@ use smithay::backend::udev::{UdevBackend, UdevEvent, all_gpus, primary_gpu};
 use smithay::output::{Mode as OutputMode, Output, PhysicalProperties, Scale};
 use smithay::reexports::calloop::{EventLoop, LoopHandle};
 use smithay::reexports::drm::control::{
-    connector, crtc, Mode, ModeTypeFlags, Device as ControlDevice,
+    Device as ControlDevice, Mode, ModeTypeFlags, connector, crtc,
 };
 use smithay::reexports::input::Libinput;
 use smithay::reexports::rustix::fs::OFlags;
@@ -144,8 +146,9 @@ pub fn init_udev(
         use smithay::backend::session::Event as SessionEvent;
         let mut libinput_suspend = libinput.clone();
         loop_handle
-            .insert_source(session_notifier, move |event, &mut (), state: &mut AerowmState| {
-                match event {
+            .insert_source(
+                session_notifier,
+                move |event, &mut (), state: &mut AerowmState| match event {
                     SessionEvent::PauseSession => {
                         info!("session paused");
                         libinput_suspend.suspend();
@@ -178,8 +181,8 @@ pub fn init_udev(
                             render_device(state, node);
                         }
                     }
-                }
-            })
+                },
+            )
             .map_err(|e| format!("session event source: {e}"))?;
     }
 
@@ -190,7 +193,7 @@ pub fn init_udev(
     for (device_id, path) in udev_backend.device_list() {
         match DrmNode::from_dev_id(device_id) {
             Ok(node) => {
-                if let Err(e) = device_added(state, &display_handle, &loop_handle, node, &path) {
+                if let Err(e) = device_added(state, &display_handle, &loop_handle, node, path) {
                     warn!("skipping DRM device {node:?} ({}): {e}", path.display());
                 }
             }
@@ -238,9 +241,12 @@ pub fn init_udev(
 
     // --- libinput events → shared input dispatch ----------------------------------
     loop_handle
-        .insert_source(libinput_backend, move |event, _, state: &mut AerowmState| {
-            crate::input::handle_libinput_event(state, event);
-        })
+        .insert_source(
+            libinput_backend,
+            move |event, _, state: &mut AerowmState| {
+                crate::input::handle_libinput_event(state, event);
+            },
+        )
         .map_err(|e| format!("libinput event source: {e}"))?;
 
     info!("Udev backend initialized");
@@ -251,7 +257,10 @@ pub fn init_udev(
 // Device / connector management
 // ---------------------------------------------------------------------------
 
-fn open_drm_fd(state: &mut AerowmState, path: &Path) -> Result<DrmDeviceFd, Box<dyn std::error::Error>> {
+fn open_drm_fd(
+    state: &mut AerowmState,
+    path: &Path,
+) -> Result<DrmDeviceFd, Box<dyn std::error::Error>> {
     let runtime = state
         .udev_data
         .as_mut()
@@ -483,12 +492,13 @@ fn connector_connected(
         .insert_if_missing(|| UdevOutputId { device: node, crtc });
 
     // Side-by-side placement.
-    let x = state
-        .space
-        .outputs()
-        .fold(0, |acc, o| {
-            acc + state.space.output_geometry(o).map(|g| g.size.w).unwrap_or(0)
-        });
+    let x = state.space.outputs().fold(0, |acc, o| {
+        acc + state
+            .space
+            .output_geometry(o)
+            .map(|g| g.size.w)
+            .unwrap_or(0)
+    });
     let position = Point::from((x, 0));
     output.change_current_state(Some(wl_mode), None, Some(Scale::Integer(1)), Some(position));
     state.space.map_output(&output, position);
@@ -509,8 +519,8 @@ fn connector_connected(
             .map_err(|e| format!("EGLDisplay: {e:?}"))?;
         let egl_context =
             EGLContext::new(&egl_display).map_err(|e| format!("EGLContext: {e:?}"))?;
-        let mut renderer =
-            unsafe { GlesRenderer::new(egl_context) }.map_err(|e| format!("GlesRenderer: {e:?}"))?;
+        let mut renderer = unsafe { GlesRenderer::new(egl_context) }
+            .map_err(|e| format!("GlesRenderer: {e:?}"))?;
         if let Err(e) = renderer.bind_wl_display(display_handle) {
             debug!("EGL display binding failed (non-fatal): {e:?}");
         }
@@ -545,8 +555,9 @@ fn connector_connected(
         GbmBufferFlags::RENDERING | GbmBufferFlags::SCANOUT,
     );
 
-    let gbm_surface = GbmBufferedSurface::new(drm_surface, allocator, COLOR_FORMATS, render_formats)
-        .map_err(|e| format!("GbmBufferedSurface: {e:?}"))?;
+    let gbm_surface =
+        GbmBufferedSurface::new(drm_surface, allocator, COLOR_FORMATS, render_formats)
+            .map_err(|e| format!("GbmBufferedSurface: {e:?}"))?;
 
     device.surfaces.insert(
         crtc,
@@ -645,11 +656,15 @@ pub fn render_udev_surface(state: &mut AerowmState, node: DrmNode, crtc: crtc::H
         let renderer = &mut surface.renderer;
 
         let mut lock_elements = Vec::new();
-        if state.is_locked {
-            if let Some(lock_surface) = state.lock_surfaces.first() {
-                use smithay::backend::renderer::element::surface::{render_elements_from_surface_tree, WaylandSurfaceRenderElement};
-                use smithay::backend::renderer::element::Kind;
-                let mut tree = render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
+        if state.is_locked
+            && let Some(lock_surface) = state.lock_surfaces.first()
+        {
+            use smithay::backend::renderer::element::Kind;
+            use smithay::backend::renderer::element::surface::{
+                WaylandSurfaceRenderElement, render_elements_from_surface_tree,
+            };
+            let mut tree =
+                render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
                     renderer,
                     lock_surface.wl_surface(),
                     (0, 0),
@@ -657,12 +672,14 @@ pub fn render_udev_surface(state: &mut AerowmState, node: DrmNode, crtc: crtc::H
                     1.0,
                     Kind::Unspecified,
                 );
-                lock_elements.append(&mut tree);
-            }
+            lock_elements.append(&mut tree);
         }
 
         let elements = if !state.is_locked {
-            match state.space.render_elements_for_output(renderer, &output, 1.0) {
+            match state
+                .space
+                .render_elements_for_output(renderer, &output, 1.0)
+            {
                 Ok(e) => e,
                 Err(e) => {
                     warn!("render elements failed: {e:?}");

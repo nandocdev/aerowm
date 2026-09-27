@@ -6,8 +6,8 @@
 
 mod common;
 
-use common::client::TestClient;
 use common::Harness;
+use common::client::TestClient;
 use std::os::unix::net::UnixStream;
 
 fn pair_client(h: &Harness) -> TestClient {
@@ -20,7 +20,12 @@ fn pair_client(h: &Harness) -> TestClient {
 fn headless_boot_advertises_core_globals() {
     let h = Harness::boot();
     let client = pair_client(&h);
-    let names: Vec<String> = client.env.globals.iter().map(|(_, i, _)| i.clone()).collect();
+    let names: Vec<String> = client
+        .env
+        .globals
+        .iter()
+        .map(|(_, i, _)| i.clone())
+        .collect();
     for required in ["wl_compositor", "wl_shm", "xdg_wm_base", "wl_seat"] {
         assert!(
             names.iter().any(|n| n == required),
@@ -36,7 +41,12 @@ fn headless_boot_advertises_protocol_globals() {
     // dropped or a delegate removed.
     let h = Harness::boot();
     let client = pair_client(&h);
-    let names: Vec<String> = client.env.globals.iter().map(|(_, i, _)| i.clone()).collect();
+    let names: Vec<String> = client
+        .env
+        .globals
+        .iter()
+        .map(|(_, i, _)| i.clone())
+        .collect();
     for required in [
         "zxdg_decoration_manager_v1",
         "wp_fractional_scale_manager_v1",

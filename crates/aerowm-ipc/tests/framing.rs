@@ -59,7 +59,8 @@ fn empty_eof_is_none() {
 #[test]
 fn oversized_frame_rejected() {
     let (mut tx, mut rx) = pair();
-    tx.write_all(&vec![b'x'; aerowm_ipc::MAX_FRAME_BYTES + 1024]).unwrap();
+    tx.write_all(&vec![b'x'; aerowm_ipc::MAX_FRAME_BYTES + 1024])
+        .unwrap();
     // No newline and over the cap: must error, never buffer forever.
     assert!(read_frame(&mut rx).is_err());
 }

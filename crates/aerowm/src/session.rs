@@ -115,11 +115,7 @@ pub fn app_id_of_x11(surface: &smithay::xwayland::X11Surface) -> Option<AppId> {
     }
     let title = {
         let t = surface.title();
-        if t.is_empty() {
-            None
-        } else {
-            Some(t)
-        }
+        if t.is_empty() { None } else { Some(t) }
     };
     Some(AppId::x11(ident, title))
 }

@@ -1,41 +1,41 @@
-use aerowm_lua::ScriptEngine;
-use wayland_server::DisplayHandle;
-use std::os::unix::net::UnixStream;
-use std::io::Write;
 use aerowm_ipc::IpcEvent;
+use aerowm_lua::ScriptEngine;
+use std::io::Write;
+use std::os::unix::net::UnixStream;
+use wayland_server::DisplayHandle;
 
 use smithay::wayland::compositor::CompositorState;
-use smithay::wayland::shm::ShmState;
-use smithay::wayland::shell::wlr_layer::WlrLayerShellState;
-use smithay::wayland::shell::xdg::{XdgShellState, ToplevelSurface};
 use smithay::wayland::fractional_scale::FractionalScaleManagerState;
-use smithay::wayland::viewporter::ViewporterState;
+use smithay::wayland::shell::wlr_layer::WlrLayerShellState;
 use smithay::wayland::shell::xdg::decoration::XdgDecorationState;
+use smithay::wayland::shell::xdg::{ToplevelSurface, XdgShellState};
+use smithay::wayland::shm::ShmState;
+use smithay::wayland::viewporter::ViewporterState;
 
+use crate::backend::udev::UdevRuntime;
+#[cfg(feature = "xwayland")]
+use calloop::LoopHandle;
+use smithay::backend::renderer::damage::OutputDamageTracker;
+use smithay::backend::renderer::gles::GlesRenderer;
+use smithay::backend::winit::WinitGraphicsBackend;
+use smithay::desktop::PopupManager;
+use smithay::desktop::Window;
+use smithay::desktop::space::Space;
+use smithay::input::{Seat, SeatState, keyboard::XkbConfig};
+use smithay::output::Output;
+use smithay::utils::{IsAlive, Logical, Point, SERIAL_COUNTER, Size};
+use smithay::wayland::output::{OutputHandler, OutputManagerState};
 #[cfg(feature = "xwayland")]
 use smithay::wayland::xwayland_shell::XWaylandShellState;
 #[cfg(feature = "xwayland")]
 use smithay::xwayland::{X11Surface, X11Wm, XWayland, XWaylandEvent};
-#[cfg(feature = "xwayland")]
-use calloop::LoopHandle;
-use smithay::input::{Seat, SeatState, keyboard::XkbConfig};
-use smithay::desktop::space::Space;
-use smithay::desktop::Window;
-use smithay::desktop::PopupManager;
-use smithay::output::Output;
-use smithay::backend::renderer::damage::OutputDamageTracker;
-use smithay::backend::renderer::gles::GlesRenderer;
-use smithay::backend::winit::WinitGraphicsBackend;
-use crate::backend::udev::UdevRuntime;
-use smithay::utils::{Logical, Point, Size, IsAlive, SERIAL_COUNTER};
-use smithay::wayland::output::{OutputHandler, OutputManagerState};
 
-use std::collections::HashMap;
+use crate::wayland_socket::WaylandSocketInfo;
+use aerowm_core::geometry::Rect as CoreRect;
 use aerowm_core::id::WindowId;
 use aerowm_core::session::PendingPlacement;
 use aerowm_core::workspace::Workspace;
-use aerowm_core::geometry::Rect as CoreRect;
-use crate::wayland_socket::WaylandSocketInfo;
+use std::collections::HashMap;
 
 pub const NUM_WORKSPACES: usize = 4;
 
@@ -124,7 +124,7 @@ pub struct AerowmState {
     pub fractional_scale_state: FractionalScaleManagerState,
     #[allow(dead_code)]
     pub viewporter_state: ViewporterState,
-    
+
     pub layer_shell_state: WlrLayerShellState,
     pub seat_state: SeatState<Self>,
     pub seat: Seat<Self>,
@@ -191,18 +191,19 @@ impl AerowmState {
             subscribers: Vec::new(),
             compositor_state: CompositorState::new::<Self>(display_handle),
             shm_state: ShmState::new::<Self>(display_handle, vec![]),
-            output_manager_state: OutputManagerState::new_with_xdg_output::<Self>(
-                display_handle,
-            ),
+            output_manager_state: OutputManagerState::new_with_xdg_output::<Self>(display_handle),
             xdg_shell_state: XdgShellState::new::<Self>(display_handle),
-            session_lock_state: smithay::wayland::session_lock::SessionLockManagerState::new::<Self, _>(display_handle, |_| true),
+            session_lock_state: smithay::wayland::session_lock::SessionLockManagerState::new::<
+                Self,
+                _,
+            >(display_handle, |_| true),
             is_locked: false,
             take_screenshot: false,
             lock_surfaces: Vec::new(),
             xdg_decoration_state: XdgDecorationState::new::<Self>(display_handle),
             fractional_scale_state: FractionalScaleManagerState::new::<Self>(display_handle),
             viewporter_state: ViewporterState::new::<Self>(display_handle),
-            
+
             layer_shell_state: WlrLayerShellState::new::<Self>(display_handle),
             seat_state,
             seat,
@@ -260,7 +261,11 @@ impl AerowmState {
         aerowm_ipc::CompositorSnapshot {
             workspaces,
             active: self.active_ws,
-            layout: self.active_workspace().get_current_layout().name().to_string(),
+            layout: self
+                .active_workspace()
+                .get_current_layout()
+                .name()
+                .to_string(),
         }
     }
 
@@ -273,9 +278,8 @@ impl AerowmState {
             payload.push('\n'); // newline delimited JSON
 
             // Send payload, removing any subscriber that disconnected (write failed)
-            self.subscribers.retain_mut(|stream| {
-                stream.write_all(payload.as_bytes()).is_ok()
-            });
+            self.subscribers
+                .retain_mut(|stream| stream.write_all(payload.as_bytes()).is_ok());
         }
     }
 
@@ -328,7 +332,11 @@ impl AerowmState {
                 });
                 surface.send_configure();
 
-                if let Some(window) = self.space.elements().find(|w| w.toplevel() == Some(surface)) {
+                if let Some(window) = self
+                    .space
+                    .elements()
+                    .find(|w| w.toplevel() == Some(surface))
+                {
                     let location = Point::from((rect.origin.x, rect.origin.y));
                     windows_to_move.push((window.clone(), location));
                 }
@@ -357,7 +365,9 @@ impl AerowmState {
 
     /// Clean up dead windows (closed by client)
     pub fn cleanup_dead_windows(&mut self) {
-        let dead_window_ids: Vec<_> = self.space.elements()
+        let dead_window_ids: Vec<_> = self
+            .space
+            .elements()
             .filter(|w| !w.alive())
             .filter_map(|w| self.id_of_window(w))
             .collect();
@@ -375,7 +385,9 @@ impl AerowmState {
         }
 
         // Unmap dead windows from space - collect first to avoid borrow issues
-        let dead_windows: Vec<_> = self.space.elements()
+        let dead_windows: Vec<_> = self
+            .space
+            .elements()
             .filter(|w| !w.alive())
             .cloned()
             .collect();
@@ -398,7 +410,9 @@ impl AerowmState {
 
     /// Layer surface with exclusive keyboard grab (lock screens, launcher
     /// popups), if any. It takes precedence over tiled windows.
-    fn exclusive_layer_focus(&self) -> Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface> {
+    fn exclusive_layer_focus(
+        &self,
+    ) -> Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface> {
         use smithay::wayland::shell::wlr_layer::KeyboardInteractivity;
         for output in self.space.outputs() {
             let map = smithay::desktop::layer_map_for_output(output);
@@ -484,7 +498,6 @@ impl AerowmState {
     pub fn kill_active(&mut self) {
         if let Some(surface) = self.focused_surface() {
             surface.send_close();
-            return;
         }
         #[cfg(feature = "xwayland")]
         if let Some(x11) = self.focused_x11_surface()
@@ -660,9 +673,7 @@ impl AerowmState {
             Some(entry) => entry,
             None => return,
         };
-        let ws_idx = entry
-            .workspace
-            .min(self.workspaces.len().saturating_sub(1));
+        let ws_idx = entry.workspace.min(self.workspaces.len().saturating_sub(1));
         // Detach from wherever the map path put it.
         for ws in &mut self.workspaces {
             ws.remove_window(id);
@@ -695,7 +706,10 @@ impl AerowmState {
         if ws_idx == self.active_ws {
             // Rebuild the space element for the active workspace.
             let window = self.window_object(id).or_else(|| {
-                self.surfaces.get(&id).cloned().map(Window::new_wayland_window)
+                self.surfaces
+                    .get(&id)
+                    .cloned()
+                    .map(Window::new_wayland_window)
             });
             #[cfg(feature = "xwayland")]
             let window = window.or_else(|| {
@@ -854,10 +868,7 @@ impl AerowmState {
     }
 
     pub fn spawn(&self, cmd: &str) {
-        let _ = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .spawn();
+        let _ = std::process::Command::new("sh").arg("-c").arg(cmd).spawn();
     }
 
     fn remap_active_workspace(&mut self) {
@@ -932,11 +943,10 @@ impl AerowmState {
         }
     }
 
-
     /// Applies declarative Window Rules via Luau to a new window.
     pub fn apply_window_rules(&mut self, id: WindowId, app_id: &str, title: Option<&str>) {
         let rules = self.engine.evaluate_rules(app_id, title);
-        
+
         if let Some(ws_idx) = rules.workspace {
             let target_ws = ws_idx.saturating_sub(1);
             if target_ws >= self.workspaces.len() {
@@ -954,24 +964,24 @@ impl AerowmState {
                 self.workspaces[target_ws].add_window(id);
             }
         }
-        
-                
-        if let Some(scratchpad) = rules.scratchpad {
-            if scratchpad && !self.scratchpad.contains(&id) {
-                self.scratchpad.push(id);
-                for ws in &mut self.workspaces {
-                    ws.remove_window(id);
-                }
-                if let Some(window) = self.window_object(id) {
-                    self.space.unmap_elem(&window);
-                }
-                self.float_window(id);
+
+        if let Some(scratchpad) = rules.scratchpad
+            && scratchpad
+            && !self.scratchpad.contains(&id)
+        {
+            self.scratchpad.push(id);
+            for ws in &mut self.workspaces {
+                ws.remove_window(id);
             }
+            if let Some(window) = self.window_object(id) {
+                self.space.unmap_elem(&window);
+            }
+            self.float_window(id);
         }
-if let Some(floating) = rules.floating {
-            if floating {
-                self.float_window(id);
-            }
+        if let Some(floating) = rules.floating
+            && floating
+        {
+            self.float_window(id);
         }
     }
 
@@ -992,9 +1002,12 @@ if let Some(floating) = rules.floating {
 
     /// Performs an atomic Hot Reload of the Luau configuration.
     pub fn reload_config(&mut self) -> Result<(), String> {
-        let new_engine = aerowm_lua::ScriptEngine::new().map_err(|e| format!("Failed to init new Lua engine: {}", e))?;
-        new_engine.load_default_config().map_err(|e| format!("Config syntax error: {}", e))?;
-        
+        let new_engine = aerowm_lua::ScriptEngine::new()
+            .map_err(|e| format!("Failed to init new Lua engine: {}", e))?;
+        new_engine
+            .load_default_config()
+            .map_err(|e| format!("Config syntax error: {}", e))?;
+
         self.engine = new_engine;
         tracing::info!("Hot reload successful");
         let _ = self.engine.emit_hook("reload");
@@ -1099,10 +1112,10 @@ if let Some(floating) = rules.floating {
         }
 
         let mut focused_sp_idx = None;
-        if let Some(focused) = self.active_workspace().get_focused() {
-            if let Some(pos) = self.scratchpad.iter().position(|&w| w == focused) {
-                focused_sp_idx = Some(pos);
-            }
+        if let Some(focused) = self.active_workspace().get_focused()
+            && let Some(pos) = self.scratchpad.iter().position(|&w| w == focused)
+        {
+            focused_sp_idx = Some(pos);
         }
 
         if let Some(pos) = focused_sp_idx {
@@ -1125,7 +1138,6 @@ if let Some(floating) = rules.floating {
         }
         self.apply_layout();
     }
-
 }
 
 /// Corner of a rectangle nearest to the cursor position.

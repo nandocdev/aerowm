@@ -160,12 +160,15 @@ pub fn draw_bar(
                     canvas.fill_rect(x + 4, h - 4, cell_w - 8, 2, config.inactive);
                 }
             }
-            cells.push(WorkspaceCell { x0: x, x1: x + cell_w, index: idx });
+            cells.push(WorkspaceCell {
+                x0: x,
+                x1: x + cell_w,
+                index: idx,
+            });
             x += cell_w + 2;
         }
     }
 
-    
     // Middle: layout
     let layout_text = &snapshot.layout;
     let layout_w = Canvas::text_width(layout_text);

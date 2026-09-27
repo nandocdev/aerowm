@@ -4,7 +4,7 @@
 mod common;
 
 use common::client::TestClient;
-use common::{wait_for, Act, ActResult, Answer, Harness, Query};
+use common::{Act, ActResult, Answer, Harness, Query, wait_for};
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
@@ -91,7 +91,10 @@ fn rule_routes_window_to_workspace() {
     let _win = client.map_window("route-me", "routed");
 
     assert!(wait_for(Duration::from_secs(5), || count(&h) == 1));
-    assert!(ws_windows(&h, 0).is_empty(), "window must leave workspace 1");
+    assert!(
+        ws_windows(&h, 0).is_empty(),
+        "window must leave workspace 1"
+    );
     assert_eq!(ws_windows(&h, 1).len(), 1, "rule must route to workspace 2");
     // Routing does not steal the active workspace...
     let Answer::Snapshot(snap) = h.query(Query::Snapshot) else {
@@ -199,7 +202,11 @@ fn two_windows_tile_full_output() {
     // stays 0×0 — locations come from the space, sizes from the configure
     // events the server sends (what real clients actually tile by).
     let h = Harness::boot();
-    h.act(Act::AddOutput { name: "test-0".into(), w: 1920, h: 1080 });
+    h.act(Act::AddOutput {
+        name: "test-0".into(),
+        w: 1920,
+        h: 1080,
+    });
     let mut client = pair_client(&h);
     let _a = client.map_window("tile-a", "a");
     let _b = client.map_window("tile-b", "b");
@@ -209,8 +216,21 @@ fn two_windows_tile_full_output() {
     // workspace order. MonadTall default: master left, stack right.
     h.act(Act::ApplyLayout);
     client.settle();
-    let tail: Vec<(i32, i32)> = client.env.configures.iter().rev().take(2).rev().copied().collect();
-    assert_eq!(tail, vec![(960, 1080), (960, 1080)], "all configures: {:?}", client.env.configures);
+    let tail: Vec<(i32, i32)> = client
+        .env
+        .configures
+        .iter()
+        .rev()
+        .take(2)
+        .rev()
+        .copied()
+        .collect();
+    assert_eq!(
+        tail,
+        vec![(960, 1080), (960, 1080)],
+        "all configures: {:?}",
+        client.env.configures
+    );
 
     let Answer::Geoms(mut geoms) = h.query(Query::Geometries) else {
         panic!("expected geoms")

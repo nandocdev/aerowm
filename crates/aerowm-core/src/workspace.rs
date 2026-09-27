@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use crate::id::WindowId;
 use crate::geometry::Rect;
+use crate::id::WindowId;
 use crate::layout::{Layout, LayoutSpec};
 
 /// Container for managing windows and focus in a virtual workspace.
@@ -101,7 +101,9 @@ impl Workspace {
 
     /// Shifts focus to the next window in the stack.
     pub fn focus_next(&mut self) {
-        if self.windows.is_empty() { return; }
+        if self.windows.is_empty() {
+            return;
+        }
         if let Some(idx) = self.focused_index {
             self.focused_index = Some((idx + 1) % self.windows.len());
         }
@@ -109,7 +111,9 @@ impl Workspace {
 
     /// Shifts focus to the previous window in the stack.
     pub fn focus_prev(&mut self) {
-        if self.windows.is_empty() { return; }
+        if self.windows.is_empty() {
+            return;
+        }
         if let Some(idx) = self.focused_index {
             self.focused_index = Some(if idx == 0 {
                 self.windows.len() - 1
@@ -121,12 +125,14 @@ impl Workspace {
 
     /// Swaps the currently focused window with the master (first) window.
     pub fn swap_master(&mut self) {
-        if self.windows.len() < 2 { return; }
-        if let Some(idx) = self.focused_index {
-            if idx != 0 {
-                self.windows.swap(0, idx);
-                self.focused_index = Some(0);
-            }
+        if self.windows.len() < 2 {
+            return;
+        }
+        if let Some(idx) = self.focused_index
+            && idx != 0
+        {
+            self.windows.swap(0, idx);
+            self.focused_index = Some(0);
         }
     }
 
@@ -193,16 +199,16 @@ mod tests {
         let w2 = WindowId::new();
 
         assert_eq!(ws.get_focused(), None);
-        
+
         ws.add_window(w1);
         assert_eq!(ws.get_focused(), Some(w1));
-        
+
         ws.add_window(w2);
         assert_eq!(ws.get_focused(), Some(w2));
-        
+
         ws.remove_window(w1);
         assert_eq!(ws.get_focused(), Some(w2));
-        
+
         ws.remove_window(w2);
         assert_eq!(ws.get_focused(), None);
     }
@@ -217,13 +223,13 @@ mod tests {
         ws.add_window(w1);
         ws.add_window(w2);
         ws.add_window(w3);
-        
+
         // newly added w3 is focused
         assert_eq!(ws.get_focused(), Some(w3));
-        
+
         ws.focus_next(); // wrap around to w1
         assert_eq!(ws.get_focused(), Some(w1));
-        
+
         ws.focus_prev(); // wrap back to w3
         assert_eq!(ws.get_focused(), Some(w3));
     }
@@ -275,9 +281,9 @@ mod tests {
         ws.add_window(w1); // master
         ws.add_window(w2);
         ws.add_window(w3); // currently focused
-        
+
         ws.swap_master();
-        
+
         let windows = ws.get_windows();
         assert_eq!(windows[0], w3); // w3 is now master
         assert_eq!(windows[2], w1); // w1 moved to the end

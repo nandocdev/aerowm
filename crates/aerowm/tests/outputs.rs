@@ -15,7 +15,11 @@ fn pair_client(h: &Harness) -> TestClient {
 #[test]
 fn attach_output_and_usable_area() {
     let h = Harness::boot();
-    h.act(Act::AddOutput { name: "test-0".into(), w: 1920, h: 1080 });
+    h.act(Act::AddOutput {
+        name: "test-0".into(),
+        w: 1920,
+        h: 1080,
+    });
 
     let Answer::Count(n) = h.query(Query::OutputCount) else {
         panic!("expected count")
@@ -40,8 +44,16 @@ fn attach_output_and_usable_area() {
 #[test]
 fn second_output_coexists() {
     let h = Harness::boot();
-    h.act(Act::AddOutput { name: "left".into(), w: 1920, h: 1080 });
-    h.act(Act::AddOutput { name: "right".into(), w: 1280, h: 720 });
+    h.act(Act::AddOutput {
+        name: "left".into(),
+        w: 1920,
+        h: 1080,
+    });
+    h.act(Act::AddOutput {
+        name: "right".into(),
+        w: 1280,
+        h: 720,
+    });
 
     let Answer::Count(n) = h.query(Query::OutputCount) else {
         panic!("expected count")

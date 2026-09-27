@@ -1,7 +1,7 @@
+use crate::state::AerowmState;
+use smithay::delegate_seat;
 use smithay::input::{SeatHandler, SeatState, pointer::CursorImageStatus};
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
-use smithay::delegate_seat;
-use crate::state::AerowmState;
 
 impl SeatHandler for AerowmState {
     type KeyboardFocus = WlSurface;
@@ -11,7 +11,7 @@ impl SeatHandler for AerowmState {
     fn seat_state(&mut self) -> &mut SeatState<AerowmState> {
         &mut self.seat_state
     }
-    
+
     fn focus_changed(&mut self, seat: &smithay::input::Seat<Self>, focused: Option<&WlSurface>) {
         // Keep the winit window title in sync-ish and log for debugging;
         // real focus state lives in the active Workspace + keyboard focus.

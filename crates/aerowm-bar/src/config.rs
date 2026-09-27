@@ -99,7 +99,10 @@ pub fn load() -> BarConfig {
         }
     };
 
-    let height: u32 = table.get::<u32>("height").unwrap_or(defaults.height).clamp(16, 64);
+    let height: u32 = table
+        .get::<u32>("height")
+        .unwrap_or(defaults.height)
+        .clamp(16, 64);
 
     let mut widgets = Vec::new();
     if let Ok(list) = table.get::<mlua::Table>("widgets") {

@@ -121,9 +121,7 @@ pub const MAX_FRAME_BYTES: usize = 64 * 1024;
 /// discarded. Returns `Ok(None)` on clean EOF with no data, `Err` on
 /// I/O errors or oversized frames. The stream is put in blocking mode
 /// for the duration of the read.
-pub fn read_frame(
-    stream: &mut std::os::unix::net::UnixStream,
-) -> std::io::Result<Option<String>> {
+pub fn read_frame(stream: &mut std::os::unix::net::UnixStream) -> std::io::Result<Option<String>> {
     use std::io::Read;
     stream.set_nonblocking(false)?;
     let mut buf = Vec::with_capacity(256);

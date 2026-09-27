@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::geometry::Rect;
 
 /// A layout algorithm takes an available bounding rectangle
-/// and the number of windows to arrange, and returns a 
+/// and the number of windows to arrange, and returns a
 /// vector of rectangles representing the geometry for each window.
 pub trait Layout {
     fn apply(&self, area: Rect, num_windows: usize) -> Vec<Rect>;
@@ -18,7 +18,10 @@ pub trait Layout {
 /// session file from a newer version never breaks startup.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LayoutSpec {
-    MonadTall { master_ratio: f32, master_count: usize },
+    MonadTall {
+        master_ratio: f32,
+        master_count: usize,
+    },
     Columns,
     Max,
 }

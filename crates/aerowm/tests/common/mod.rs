@@ -86,7 +86,11 @@ pub enum Act {
     CleanupDead,
     ApplyLayout,
     /// Attach a headless output `(name, w, h)` and make it the active one.
-    AddOutput { name: String, w: i32, h: i32 },
+    AddOutput {
+        name: String,
+        w: i32,
+        h: i32,
+    },
     /// Try to spawn XWayland; only meaningful when the binary is missing
     /// (must fail gracefully, never panic).
     TryXwaylandSpawn,
@@ -206,9 +210,13 @@ fn answer(state: &AerowmState, outputs: &[smithay::output::Output], q: Query) ->
                 .collect(),
         ),
         Query::RuleCount => Answer::Count(state.engine.rule_count()),
-        Query::EvalRules(class) => {
-            Answer::Count(state.engine.evaluate_rules(&class, None).workspace.unwrap_or(0))
-        }
+        Query::EvalRules(class) => Answer::Count(
+            state
+                .engine
+                .evaluate_rules(&class, None)
+                .workspace
+                .unwrap_or(0),
+        ),
         Query::FloatingIds => Answer::Ids(
             state
                 .surfaces
@@ -217,9 +225,12 @@ fn answer(state: &AerowmState, outputs: &[smithay::output::Output], q: Query) ->
                 .map(|id| id.as_usize())
                 .collect(),
         ),
-        Query::Focused => {
-            Answer::OptId(state.active_workspace().get_focused().map(|id| id.as_usize()))
-        }
+        Query::Focused => Answer::OptId(
+            state
+                .active_workspace()
+                .get_focused()
+                .map(|id| id.as_usize()),
+        ),
         Query::Geometries => Answer::Geoms(
             state
                 .surfaces
@@ -247,7 +258,12 @@ fn answer(state: &AerowmState, outputs: &[smithay::output::Output], q: Query) ->
                 .get(i)
                 .map(|o| state.usable_area_for_output(o))
                 .expect("test requested a missing output");
-            Answer::Area((area.origin.x, area.origin.y, area.size.width, area.size.height))
+            Answer::Area((
+                area.origin.x,
+                area.origin.y,
+                area.size.width,
+                area.size.height,
+            ))
         }
     }
 }
@@ -308,7 +324,12 @@ fn apply(
                 size: Size::from((w, h)),
                 refresh: 60_000,
             };
-            output.change_current_state(Some(mode), Some(Transform::Normal), Some(smithay::output::Scale::Integer(1)), None);
+            output.change_current_state(
+                Some(mode),
+                Some(Transform::Normal),
+                Some(smithay::output::Scale::Integer(1)),
+                None,
+            );
             output.create_global::<AerowmState>(dh);
             state.space.map_output(&output, (0, 0));
             state.output = Some(output.clone());

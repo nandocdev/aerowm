@@ -1,7 +1,7 @@
-use clap::{Parser, Subcommand};
 use aerowm_ipc::{IpcCommand, IpcResponse, WorkspaceAction, ipc_socket_path};
-use std::os::unix::net::UnixStream;
+use clap::{Parser, Subcommand};
 use std::io::{Read, Write};
+use std::os::unix::net::UnixStream;
 
 #[derive(Parser)]
 #[command(name = "aerowm-ctl", version, about = "CLI tool to control AeroWM")]
@@ -70,7 +70,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stream = match stream_res {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("Failed to connect to AeroWM at {}. Is it running?", socket_path.display());
+            eprintln!(
+                "Failed to connect to AeroWM at {}. Is it running?",
+                socket_path.display()
+            );
             eprintln!("Error details: {}", e);
             std::process::exit(1);
         }
@@ -104,7 +107,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("{}", msg);
             }
         } else {
-            eprintln!("Error: {}", response.message.unwrap_or_else(|| "Unknown error".to_string()));
+            eprintln!(
+                "Error: {}",
+                response
+                    .message
+                    .unwrap_or_else(|| "Unknown error".to_string())
+            );
             std::process::exit(1);
         }
     } else {

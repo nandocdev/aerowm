@@ -1,9 +1,9 @@
 use smithay::{
     delegate_session_lock,
+    reexports::wayland_server::protocol::wl_output::WlOutput,
     wayland::session_lock::{
         LockSurface, SessionLockHandler, SessionLockManagerState, SessionLocker,
     },
-    reexports::wayland_server::protocol::wl_output::WlOutput,
 };
 
 use crate::state::AerowmState;
@@ -19,9 +19,13 @@ impl SessionLockHandler for AerowmState {
         }
         self.is_locked = true;
         confirmation.lock();
-        
+
         if let Some(keyboard) = self.seat.get_keyboard() {
-            keyboard.set_focus(self, None::<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>, 0.into());
+            keyboard.set_focus(
+                self,
+                None::<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface>,
+                0.into(),
+            );
         }
     }
 
@@ -37,12 +41,12 @@ impl SessionLockHandler for AerowmState {
             state.size = Some((1920, 1080).into()); // Hardcoded bounds for now
         });
         surface.send_configure();
-        
+
         // Give keyboard focus to the lock surface
         if let Some(keyboard) = self.seat.get_keyboard() {
-            keyboard.set_focus(self, Some(surface.wl_surface().clone().into()), 0.into());
+            keyboard.set_focus(self, Some(surface.wl_surface().clone()), 0.into());
         }
-        
+
         self.lock_surfaces.push(surface);
     }
 }

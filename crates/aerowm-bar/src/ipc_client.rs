@@ -67,8 +67,7 @@ pub struct Subscriber {
 
 impl Subscriber {
     pub fn connect() -> Result<Self, String> {
-        let payload =
-            serde_json::to_string(&IpcCommand::Subscribe).map_err(|e| e.to_string())?;
+        let payload = serde_json::to_string(&IpcCommand::Subscribe).map_err(|e| e.to_string())?;
         let stream = send_raw(&payload)?;
         stream
             .set_nonblocking(true)

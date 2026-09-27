@@ -15,7 +15,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use calloop::{generic::Generic, Interest, LoopHandle, Mode, PostAction};
+use calloop::{Interest, LoopHandle, Mode, PostAction, generic::Generic};
 use wayland_server::DisplayHandle;
 
 use crate::handlers::compositor::ClientState;

@@ -190,7 +190,11 @@ fn layer_focus_under(state: &AerowmState, pos: Point<f64, Logical>) -> Option<Wl
             );
             if rect.contains(pos.to_i32_round()) {
                 let candidate = (rank(layer.layer()), idx, layer.wl_surface().clone());
-                if best.as_ref().map(|b| (b.0, b.1) <= (candidate.0, candidate.1)).unwrap_or(true) {
+                if best
+                    .as_ref()
+                    .map(|b| (b.0, b.1) <= (candidate.0, candidate.1))
+                    .unwrap_or(true)
+                {
                     best = Some(candidate);
                 }
             }
@@ -204,7 +208,7 @@ fn pointer_focus_under(
     pos: Point<f64, Logical>,
 ) -> Option<(WlSurface, Point<f64, Logical>)> {
     use smithay::wayland::seat::WaylandFocus;
-    
+
     // If session is locked, only the lock surface receives pointer input.
     if state.is_locked {
         if let Some(lock_surface) = state.lock_surfaces.first() {
@@ -277,7 +281,12 @@ pub fn pointer_motion_relative(state: &mut AerowmState, delta: Point<f64, Logica
     if let Some(size) = state.output_size {
         pos.x = pos.x.clamp(0.0, size.w as f64 - 1.0);
         pos.y = pos.y.clamp(0.0, size.h as f64 - 1.0);
-    } else if let Some(geometry) = state.space.outputs().next().and_then(|o| state.space.output_geometry(o)) {
+    } else if let Some(geometry) = state
+        .space
+        .outputs()
+        .next()
+        .and_then(|o| state.space.output_geometry(o))
+    {
         pos.x = pos.x.clamp(
             geometry.loc.x as f64,
             (geometry.loc.x + geometry.size.w) as f64 - 1.0,
@@ -372,10 +381,7 @@ fn forward_button(state: &mut AerowmState, button: u32, btn_state: ButtonState, 
     );
 }
 
-pub fn handle_pointer_motion_absolute(
-    state: &mut AerowmState,
-    event: WinitMouseMovedEvent,
-) {
+pub fn handle_pointer_motion_absolute(state: &mut AerowmState, event: WinitMouseMovedEvent) {
     let Some(output_size) = state.output_size else {
         return;
     };
@@ -436,11 +442,7 @@ pub fn handle_libinput_event(
                 })
                 .unwrap_or((1920.0, 1080.0));
             let time = event.time() as u32;
-            pointer_motion_to(
-                state,
-                Point::from((event.x() * w, event.y() * h)),
-                time,
-            );
+            pointer_motion_to(state, Point::from((event.x() * w, event.y() * h)), time);
         }
         InputEvent::PointerButton { event } => {
             pointer_button_event(

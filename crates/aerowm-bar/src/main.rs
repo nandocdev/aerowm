@@ -20,10 +20,16 @@ use smithay_client_toolkit::{
     output::{OutputHandler, OutputState},
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
-    seat::{Capability, SeatHandler, SeatState, pointer::{PointerEventKind, PointerHandler}},
+    seat::{
+        Capability, SeatHandler, SeatState,
+        pointer::{PointerEventKind, PointerHandler},
+    },
     shell::{
         WaylandSurface,
-        wlr_layer::{Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface, LayerSurfaceConfigure},
+        wlr_layer::{
+            Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
+            LayerSurfaceConfigure,
+        },
     },
     shm::{Shm, ShmHandler, slot::SlotPool},
 };
@@ -70,11 +76,7 @@ impl Bar {
         let len = (width * height) as usize * 4;
 
         // (Re)create the pool when the width changed.
-        let recreate = self
-            .pool
-            .as_ref()
-            .map(|p| p.len() != len)
-            .unwrap_or(true);
+        let recreate = self.pool.as_ref().map(|p| p.len() != len).unwrap_or(true);
         if recreate {
             match SlotPool::new(len, &self.shm) {
                 Ok(pool) => self.pool = Some(pool),
@@ -182,9 +184,27 @@ impl OutputHandler for Bar {
     fn output_state(&mut self) -> &mut OutputState {
         &mut self.output_state
     }
-    fn new_output(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: wl_output::WlOutput) {}
-    fn update_output(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: wl_output::WlOutput) {}
-    fn output_destroyed(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _output: wl_output::WlOutput) {}
+    fn new_output(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _output: wl_output::WlOutput,
+    ) {
+    }
+    fn update_output(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _output: wl_output::WlOutput,
+    ) {
+    }
+    fn output_destroyed(
+        &mut self,
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+        _output: wl_output::WlOutput,
+    ) {
+    }
 }
 
 impl SeatHandler for Bar {
@@ -214,7 +234,8 @@ impl SeatHandler for Bar {
         _capability: Capability,
     ) {
     }
-    fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {}
+    fn remove_seat(&mut self, _conn: &Connection, _qh: &QueueHandle<Self>, _seat: wl_seat::WlSeat) {
+    }
 }
 
 impl PointerHandler for Bar {
@@ -292,7 +313,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     let config = config::load();
-    log::info!("bar config: height={} widgets={:?}", config.height, config.widgets);
+    log::info!(
+        "bar config: height={} widgets={:?}",
+        config.height,
+        config.widgets
+    );
 
     let conn = Connection::connect_to_env()?;
     let (globals, event_queue) = registry_queue_init::<Bar>(&conn)?;
@@ -304,13 +329,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shm = Shm::bind(&globals, &qh).map_err(|_| "wl_shm unavailable")?;
 
     let surface = compositor.create_surface(&qh);
-    let layer = layer_shell.create_layer_surface(
-        &qh,
-        surface,
-        Layer::Top,
-        Some(NAMESPACE),
-        None,
-    );
+    let layer = layer_shell.create_layer_surface(&qh, surface, Layer::Top, Some(NAMESPACE), None);
     layer.set_anchor(Anchor::TOP | Anchor::LEFT | Anchor::RIGHT);
     layer.set_exclusive_zone(config.height as i32);
     layer.set_keyboard_interactivity(KeyboardInteractivity::None);
@@ -371,7 +390,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .insert_source(source, |_, _, bar: &mut Bar| {
                 let changed = bar.ipc_sub.as_mut().map(|s| s.drain_events()).unwrap_or(0);
                 if changed > 0 {
-                        bar.refresh_state();
+                    bar.refresh_state();
                 }
                 Ok(calloop::PostAction::Continue)
             })
@@ -381,14 +400,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1s tick: clock widget + periodic refresh backstop.
     event_loop
         .handle()
-        .insert_source(Timer::from_duration(Duration::from_secs(1)), |_, _, bar: &mut Bar| {
-            let now = current_clock();
-            if now != bar.clock_cache {
-                bar.clock_cache = now;
-                bar.draw();
-            }
-            TimeoutAction::ToDuration(Duration::from_secs(1))
-        })
+        .insert_source(
+            Timer::from_duration(Duration::from_secs(1)),
+            |_, _, bar: &mut Bar| {
+                let now = current_clock();
+                if now != bar.clock_cache {
+                    bar.clock_cache = now;
+                    bar.draw();
+                }
+                TimeoutAction::ToDuration(Duration::from_secs(1))
+            },
+        )
         .map_err(|e| format!("timer: {e}"))?;
 
     while !bar.exit {

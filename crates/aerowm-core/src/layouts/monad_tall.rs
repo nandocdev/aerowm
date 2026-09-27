@@ -24,7 +24,7 @@ impl Layout for MonadTall {
         if num_windows == 0 {
             return vec![];
         }
-        
+
         if num_windows <= self.master_count {
             let heights = split_evenly(area.size.height, num_windows);
             let mut rects = Vec::with_capacity(num_windows);
@@ -69,13 +69,13 @@ impl Layout for MonadTall {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_monad_tall_single_window() {
         let layout = MonadTall::default();
         let area = Rect::new(0, 0, 1920, 1080);
         let rects = layout.apply(area, 1);
-        
+
         assert_eq!(rects.len(), 1);
         assert_eq!(rects[0], Rect::new(0, 0, 1920, 1080));
     }
@@ -85,7 +85,7 @@ mod tests {
         let layout = MonadTall::default();
         let area = Rect::new(0, 0, 1920, 1080);
         let rects = layout.apply(area, 2);
-        
+
         assert_eq!(rects.len(), 2);
         assert_eq!(rects[0], Rect::new(0, 0, 960, 1080));
         assert_eq!(rects[1], Rect::new(960, 0, 960, 1080));

@@ -1,10 +1,10 @@
+use smithay::delegate_xdg_shell;
+use smithay::desktop::PopupKind;
+use smithay::desktop::Window;
+use smithay::reexports::wayland_server::protocol::wl_seat::WlSeat;
 use smithay::wayland::shell::xdg::{
     PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
 };
-use smithay::reexports::wayland_server::protocol::wl_seat::WlSeat;
-use smithay::delegate_xdg_shell;
-use smithay::desktop::Window;
-use smithay::desktop::PopupKind;
 
 use crate::state::AerowmState;
 
@@ -36,7 +36,7 @@ impl XdgShellHandler for AerowmState {
         // Apply Luau window rules
         let app_id = app.as_ref().map(|a| a.id.as_str()).unwrap_or("");
         let title = app.as_ref().and_then(|a| a.title.as_deref());
-        self.apply_window_rules(id, app_id, title.as_deref());
+        self.apply_window_rules(id, app_id, title);
 
         // Apply layout to position all windows
         self.apply_layout();
