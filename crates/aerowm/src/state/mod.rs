@@ -63,13 +63,14 @@ use aerowm_core::session::PendingPlacement;
 use aerowm_core::workspace::Workspace;
 use std::collections::HashMap;
 
-pub use grab::{GrabCorner, PointerGrabState};
+pub use grab::PointerGrabState;
+
+// Re-exported so callers keep a single import path for compositor policy:
+// the minimum floating size is grab arithmetic, but it is also applied
+// to X11 configure requests in `handlers::xwayland`.
+pub use aerowm_core::grab::{GrabCorner, MIN_FLOAT_H, MIN_FLOAT_SIZE, MIN_FLOAT_W};
 
 pub const NUM_WORKSPACES: usize = 4;
-
-/// Minimum user-resizable size for floating windows.
-pub const MIN_FLOAT_W: i32 = 120;
-pub const MIN_FLOAT_H: i32 = 80;
 
 pub struct AerowmState {
     pub engine: ScriptEngine,
