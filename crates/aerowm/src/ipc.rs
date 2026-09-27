@@ -53,8 +53,23 @@ pub fn init_ipc_socket(
                                 success: true,
                                 message: serde_json::to_string(&snapshot).ok(),
                             };
-                            let resp_str = serde_json::to_string(&response).unwrap_or_default();
-                            let _ = stream.write_all(resp_str.as_bytes());
+                            // A silent empty string here would read as a valid
+                            // but empty answer to `aerowm-ctl`, so report it.
+                            match serde_json::to_string(&response) {
+                                Ok(resp_str) => {
+                                    let _ = stream.write_all(resp_str.as_bytes());
+                                }
+                                Err(e) => {
+                                    error!("failed to serialize GetState response: {e}");
+                                    let fallback = IpcResponse {
+                                        success: false,
+                                        message: Some("snapshot serialization failed".into()),
+                                    };
+                                    if let Ok(resp_str) = serde_json::to_string(&fallback) {
+                                        let _ = stream.write_all(resp_str.as_bytes());
+                                    }
+                                }
+                            }
                             return Ok(PostAction::Continue);
                         }
                         match command {
@@ -107,8 +122,12 @@ pub fn init_ipc_socket(
                             success: true,
                             message: None,
                         };
-                        let resp_str = serde_json::to_string(&response).unwrap_or_default();
-                        let _ = stream.write_all(resp_str.as_bytes());
+                        match serde_json::to_string(&response) {
+                            Ok(resp_str) => {
+                                let _ = stream.write_all(resp_str.as_bytes());
+                            }
+                            Err(e) => error!("failed to serialize IPC ACK: {e}"),
+                        }
                     } else {
                         warn!("IPC received malformed payload");
                     }
