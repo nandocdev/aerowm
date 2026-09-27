@@ -1,4 +1,8 @@
 //! Tiling, space mapping and floating geometry.
+//!
+//! Geometry reaches clients through [`ConfigurableSurface`], so a new
+//! backend only has to implement that one trait instead of being
+//! threaded through the layout code.
 
 use aerowm_core::geometry::Rect as CoreRect;
 use aerowm_core::id::WindowId;
@@ -52,36 +56,11 @@ impl AerowmState {
         // Collect windows to move first to avoid borrow issues
         let mut windows_to_move = Vec::new();
         for (window_id, rect) in window_rects {
-            if let Some(surface) = self.surfaces.get(&window_id) {
-                // Send the new size to the Wayland client
-                surface.with_pending_state(|state| {
-                    state.size = Some((rect.size.width as i32, rect.size.height as i32).into());
-                });
-                surface.send_configure();
-
-                if let Some(window) = self
-                    .space
-                    .elements()
-                    .find(|w| w.toplevel() == Some(surface))
-                {
-                    let location = Point::from((rect.origin.x, rect.origin.y));
-                    windows_to_move.push((window.clone(), location));
-                }
+            if let Some(surface) = self.configurable(window_id) {
+                surface.push_geometry(rect);
             }
-            #[cfg(feature = "xwayland")]
-            if let Some(x11) = self.x11_surfaces.get(&window_id).cloned() {
-                // X11 windows get their tile geometry through configure.
-                let geo = smithay::utils::Rectangle::new(
-                    (rect.origin.x, rect.origin.y).into(),
-                    (rect.size.width as i32, rect.size.height as i32).into(),
-                );
-                if let Err(e) = x11.configure(Some(geo)) {
-                    tracing::warn!("failed to configure X11 window: {e:?}");
-                }
-                if let Some(window) = self.window_object(window_id) {
-                    let location = Point::from((rect.origin.x, rect.origin.y));
-                    windows_to_move.push((window, location));
-                }
+            if let Some(window) = self.window_object(window_id) {
+                windows_to_move.push((window, Point::from((rect.origin.x, rect.origin.y))));
             }
         }
 
@@ -90,25 +69,14 @@ impl AerowmState {
         }
     }
 
-    /// Pushes a size configure to a managed window on either backend.
-    pub(crate) fn configure_window_size(&self, id: WindowId, rect: &CoreRect) {
-        if let Some(surface) = self.surfaces.get(&id) {
-            surface.with_pending_state(|s| {
-                s.size = Some((rect.size.width as i32, rect.size.height as i32).into());
-            });
-            surface.send_configure();
-        }
-        #[cfg(feature = "xwayland")]
-        if !self.surfaces.contains_key(&id)
-            && let Some(x11) = self.x11_surfaces.get(&id)
+    /// Re-sends a floating window's pinned geometry to its client. Used
+    /// after a space remap, where the client would otherwise be left with
+    /// whatever size the previous layout left it at.
+    pub(crate) fn push_pinned_geometry(&self, id: WindowId) {
+        if let Some(pinned) = self.float_geo.get(&id).copied()
+            && let Some(surface) = self.configurable(id)
         {
-            let geo = smithay::utils::Rectangle::new(
-                (rect.origin.x, rect.origin.y).into(),
-                (rect.size.width as i32, rect.size.height as i32).into(),
-            );
-            if let Err(e) = x11.configure(Some(geo)) {
-                tracing::warn!("failed to configure X11 window: {e:?}");
-            }
+            surface.push_geometry(pinned);
         }
     }
 
@@ -151,9 +119,7 @@ impl AerowmState {
                     .get(&id)
                     .map(|r| Point::from((r.origin.x, r.origin.y)))
                     .unwrap_or(Point::from((0, 0)));
-                if let Some(pinned) = self.float_geo.get(&id).copied() {
-                    self.configure_window_size(id, &pinned);
-                }
+                self.push_pinned_geometry(id);
                 self.space.map_element(window, loc, false);
             } else {
                 // Re-map; real position comes from apply_layout right after.

@@ -8,11 +8,10 @@
 //! arithmetic and XWayland lifecycle to find its three lines.
 //!
 //! - [`focus`]: keyboard focus, activation and workspace navigation
-//! - [`grab`]: interactive pointer move/resize grabs (math in
-//!   [`aerowm_core::grab`])
+//! - [`grab`]: interactive pointer move/resize grabs
 //! - [`layout`]: tiling, space mapping and floating geometry
 //! - [`window`]: per-window bookkeeping (floating, scratchpad, cleanup)
-//! - [`surface`]: backend-agnostic window lookup
+//! - [`surface`]: backend-agnostic surface lookup and configuration
 //! - [`rules`]: declarative Luau window rules
 //! - [`session`]: session restore and config hot reload
 //! - [`ipc`]: status snapshots and event broadcast
