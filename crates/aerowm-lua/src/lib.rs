@@ -16,6 +16,31 @@ pub struct ScriptEngine {
     lua: Lua,
 }
 
+/// Characters that make a command line need a real shell: quoting,
+/// substitution, redirection, globbing, expansion and control operators.
+/// A string without any of them is a plain `program arg...` line.
+const SHELL_CHARS: &[char] = &[
+    '|', '&', ';', '<', '>', '(', ')', '$', '`', '\n', '\r', '\'', '"', '\\', '*', '?', '[', ']',
+    '{', '}', '~', '#',
+];
+
+/// Splits a command line into `program` + arguments when it can be
+/// executed directly, or `None` when the string contains shell syntax
+/// and must go through `sh -c`.
+///
+/// Configs are local and trusted, so this is about not paying for a
+/// shell (and not running one) when nobody asked for one.
+fn direct_command(cmd: &str) -> Option<Vec<&str>> {
+    if cmd.chars().any(|c| SHELL_CHARS.contains(&c)) {
+        return None;
+    }
+    let words: Vec<&str> = cmd.split_whitespace().collect();
+    if words.is_empty() {
+        return None;
+    }
+    Some(words)
+}
+
 impl ScriptEngine {
     /// Initializes a new Luau sandbox environment with the `aerowm` API.
     pub fn new() -> Result<Self> {
@@ -36,18 +61,36 @@ impl ScriptEngine {
         let spawn_fn = lua.create_function(|_, cmd: mlua::Value| {
             match cmd {
                 mlua::Value::String(s) => {
-                    let cmd_str = s.to_str()?;
-                    Command::new("sh")
-                        .arg("-c")
-                        .arg(cmd_str.as_ref())
-                        .spawn()
-                        .map_err(|e| {
-                            mlua::Error::RuntimeError(format!(
-                                "Failed to spawn {}: {}",
-                                cmd_str.as_ref(),
-                                e
-                            ))
-                        })?;
+                    let borrowed = s.to_str()?;
+                    let cmd_str: &str = borrowed.as_ref();
+                    match direct_command(cmd_str) {
+                        // Plain command line: exec it without a shell.
+                        Some(words) => {
+                            Command::new(words[0])
+                                .args(&words[1..])
+                                .spawn()
+                                .map_err(|e| {
+                                    mlua::Error::RuntimeError(format!(
+                                        "Failed to spawn {}: {}",
+                                        cmd_str, e
+                                    ))
+                                })?;
+                        }
+                        // Contains shell syntax (quotes, pipes, globs, ...):
+                        // only a shell can honour it.
+                        None => {
+                            Command::new("sh")
+                                .arg("-c")
+                                .arg(cmd_str)
+                                .spawn()
+                                .map_err(|e| {
+                                    mlua::Error::RuntimeError(format!(
+                                        "Failed to spawn {}: {}",
+                                        cmd_str, e
+                                    ))
+                                })?;
+                        }
+                    }
                 }
                 mlua::Value::Table(t) => {
                     let len = t.len().unwrap_or(0);
@@ -387,5 +430,48 @@ mod tests {
         let r2 = engine.evaluate_rules("firefox", Some("YouTube - Mozilla Firefox"));
         assert_eq!(r2.workspace, Some(4));
         assert_eq!(r2.floating, None);
+    }
+
+    #[test]
+    fn plain_command_lines_skip_the_shell() {
+        assert_eq!(direct_command("kitty"), Some(vec!["kitty"]));
+        assert_eq!(
+            direct_command("kitty --class=term --title Dev"),
+            Some(vec!["kitty", "--class=term", "--title", "Dev"])
+        );
+        // Repeated whitespace collapses like a shell word split would.
+        assert_eq!(
+            direct_command("  foot \t client"),
+            Some(vec!["foot", "client"])
+        );
+    }
+
+    #[test]
+    fn shell_syntax_falls_back_to_sh() {
+        // Anything a shell would interpret must still reach one.
+        for cmd in [
+            "",
+            "   ",
+            "echo 'hello world'",
+            "echo \"$HOME\"",
+            "kitty && foot",
+            "notify-send hi | tee log",
+            "ls > /tmp/out",
+            "rm -rf ~/Downloads",
+            "cat *.conf",
+            "echo hi; exit 1",
+        ] {
+            assert_eq!(direct_command(cmd), None, "expected shell for {cmd:?}");
+        }
+    }
+
+    #[test]
+    fn spawn_string_without_shell_syntax_runs() {
+        let engine = ScriptEngine::new().unwrap();
+        let config = r#"
+            aerowm.spawn("true")
+            aerowm.spawn("echo hello")
+        "#;
+        assert!(engine.load_config_string(config).is_ok());
     }
 }
