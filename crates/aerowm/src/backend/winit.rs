@@ -79,6 +79,15 @@ pub fn init_winit(
                 }
                 WinitEvent::Redraw => {
                     render_frame(state);
+                    // `RedrawRequested` only arrives after someone asks for
+                    // it, so the frame just rendered has to schedule the
+                    // next one. Without this the compositor renders the
+                    // single frame winit sends when the window is first
+                    // shown, and then goes silent forever: the 16ms timer
+                    // only drains the event queue, it never redraws.
+                    if let Some(backend) = &state.backend {
+                        backend.window().request_redraw();
+                    }
                 }
                 WinitEvent::Input(event) => match event {
                     InputEvent::Keyboard { event } => {
