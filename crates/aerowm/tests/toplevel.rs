@@ -182,6 +182,73 @@ fn floating_toggle_pins_window() {
 }
 
 #[test]
+fn resize_grab_drags_corner_and_clamps_at_minimum() {
+    // The corner math lives in `aerowm_core::grab`; this covers the glue:
+    // grab lifecycle, pinned geometry and the configure sent to the client.
+    let h = Harness::boot();
+    h.act(Act::AddOutput {
+        name: "test-0".into(),
+        w: 1920,
+        h: 1080,
+    });
+    let mut client = pair_client(&h);
+    let _win = client.map_window("resizer", "r");
+    assert!(wait_for(Duration::from_secs(5), || count(&h) == 1));
+    let id = ws_windows(&h, 0)[0];
+
+    // Pin a known geometry: headless clients never attach a buffer, so the
+    // committed size the compositor would pin on toggle is 0×0.
+    assert!(matches!(
+        h.act(Act::PinFloatGeometry {
+            id,
+            x: 100,
+            y: 200,
+            w: 400,
+            h: 300
+        }),
+        ActResult::Ok
+    ));
+
+    // Grab the bottom-right corner and drag it +50/-20.
+    h.act(Act::ResizeGrab {
+        cx: 500.0,
+        cy: 500.0,
+        tx: 550.0,
+        ty: 480.0,
+    });
+    let Answer::Geoms(geoms) = h.query(Query::FloatGeometries) else {
+        panic!("expected geoms")
+    };
+    assert_eq!(geoms.len(), 1);
+    assert_eq!(
+        (geoms[0].x, geoms[0].y, geoms[0].w, geoms[0].h),
+        (100, 200, 450, 280),
+        "drag moves the grabbed corner only"
+    );
+    // The client is told the new size through a configure.
+    client.settle();
+    assert_eq!(client.env.configures.last(), Some(&(450, 280)));
+
+    // Dragging the same corner past the opposite edge stops at the
+    // minimum size instead of inverting the window.
+    h.act(Act::ResizeGrab {
+        cx: 550.0,
+        cy: 480.0,
+        tx: -5000.0,
+        ty: -5000.0,
+    });
+    let Answer::Geoms(geoms) = h.query(Query::FloatGeometries) else {
+        panic!("expected geoms")
+    };
+    assert_eq!(
+        (geoms[0].x, geoms[0].y, geoms[0].w, geoms[0].h),
+        (100, 200, 120, 80)
+    );
+    client.settle();
+    assert_eq!(client.env.configures.last(), Some(&(120, 80)));
+}
+
+#[test]
 fn out_of_range_rule_is_ignored_with_warning() {
     let h = Harness::boot();
     load_ok(

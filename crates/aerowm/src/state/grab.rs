@@ -1,20 +1,18 @@
 //! Interactive pointer grabs: dragging a floating window around and
 //! resizing it from a corner.
+//!
+//! The arithmetic lives in [`aerowm_core::grab`]; this module owns the
+//! grab lifecycle — starting one, advancing it with pointer motion and
+//! applying the resulting geometry, whatever backend the window is on.
 
 use aerowm_core::geometry::Rect as CoreRect;
+use aerowm_core::grab::{
+    GrabCorner, MIN_FLOAT_SIZE, cursor_delta, drag_origin, nearest_corner, resize_from_corner,
+};
 use aerowm_core::id::WindowId;
 use smithay::utils::{Logical, Point};
 
-use super::{AerowmState, MIN_FLOAT_H, MIN_FLOAT_W};
-
-/// Corner grabbed for an interactive resize.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GrabCorner {
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-}
+use super::AerowmState;
 
 /// Pointer grab state for interactive move/resize of floating windows.
 ///
@@ -111,14 +109,13 @@ impl AerowmState {
         match self.grab {
             PointerGrabState::None => {}
             PointerGrabState::Move { id, dx, dy, .. } => {
-                let nx = (cursor_x - dx).round() as i32;
-                let ny = (cursor_y - dy).round() as i32;
+                let origin = drag_origin(cursor_x, cursor_y, dx, dy);
                 if let Some(window) = self.window_object(id) {
-                    self.space.map_element(window, Point::from((nx, ny)), false);
+                    self.space
+                        .map_element(window, Point::from((origin.x, origin.y)), false);
                 }
                 if let Some(geo) = self.float_geo.get_mut(&id) {
-                    geo.origin.x = nx;
-                    geo.origin.y = ny;
+                    geo.origin = origin;
                 }
             }
             PointerGrabState::Resize {
@@ -129,39 +126,19 @@ impl AerowmState {
                 cursor_y: sy,
                 ..
             } => {
-                let dx = (cursor_x - sx).round() as i32;
-                let dy = (cursor_y - sy).round() as i32;
-                let x1 = start.origin.x + start.size.width as i32;
-                let y1 = start.origin.y + start.size.height as i32;
-                let (nx, ny, nw, nh) = match corner {
-                    GrabCorner::TopLeft => {
-                        let nx = (start.origin.x + dx).min(x1 - MIN_FLOAT_W);
-                        let ny = (start.origin.y + dy).min(y1 - MIN_FLOAT_H);
-                        (nx, ny, x1 - nx, y1 - ny)
-                    }
-                    GrabCorner::TopRight => {
-                        let ny = (start.origin.y + dy).min(y1 - MIN_FLOAT_H);
-                        let nw = (start.size.width as i32 + dx).max(MIN_FLOAT_W);
-                        (start.origin.x, ny, nw, y1 - ny)
-                    }
-                    GrabCorner::BottomLeft => {
-                        let nx = (start.origin.x + dx).min(x1 - MIN_FLOAT_W);
-                        let nh = (start.size.height as i32 + dy).max(MIN_FLOAT_H);
-                        (nx, start.origin.y, x1 - nx, nh)
-                    }
-                    GrabCorner::BottomRight => {
-                        let nw = (start.size.width as i32 + dx).max(MIN_FLOAT_W);
-                        let nh = (start.size.height as i32 + dy).max(MIN_FLOAT_H);
-                        (start.origin.x, start.origin.y, nw, nh)
-                    }
-                };
+                let (dx, dy) = cursor_delta(sx, sy, cursor_x, cursor_y);
+                let resized = resize_from_corner(start, corner, dx, dy, MIN_FLOAT_SIZE);
                 if let Some(window) = self.window_object(id) {
-                    self.space.map_element(window, Point::from((nx, ny)), false);
+                    self.space.map_element(
+                        window,
+                        Point::from((resized.origin.x, resized.origin.y)),
+                        false,
+                    );
                 }
-                let resized = CoreRect::new(nx, ny, nw as u32, nh as u32);
                 if let Some(surface) = self.surfaces.get(&id) {
                     surface.with_pending_state(|s| {
-                        s.size = Some((nw, nh).into());
+                        s.size =
+                            Some((resized.size.width as i32, resized.size.height as i32).into());
                     });
                     surface.send_configure();
                 }
@@ -169,7 +146,10 @@ impl AerowmState {
                 if !self.surfaces.contains_key(&id)
                     && let Some(x11) = self.x11_surfaces.get(&id)
                 {
-                    let geo = smithay::utils::Rectangle::new((nx, ny).into(), (nw, nh).into());
+                    let geo = smithay::utils::Rectangle::new(
+                        (resized.origin.x, resized.origin.y).into(),
+                        (resized.size.width as i32, resized.size.height as i32).into(),
+                    );
                     if let Err(e) = x11.configure(Some(geo)) {
                         tracing::warn!("failed to configure X11 window: {e:?}");
                     }
@@ -181,21 +161,5 @@ impl AerowmState {
 
     pub fn end_grab(&mut self) {
         self.grab = PointerGrabState::None;
-    }
-}
-
-/// Corner of a rectangle nearest to the cursor position.
-fn nearest_corner(rect: &CoreRect, cursor_x: f64, cursor_y: f64) -> GrabCorner {
-    let x0 = rect.origin.x as f64;
-    let y0 = rect.origin.y as f64;
-    let x1 = x0 + rect.size.width as f64;
-    let y1 = y0 + rect.size.height as f64;
-    let left = (cursor_x - x0).abs() < (cursor_x - x1).abs();
-    let top = (cursor_y - y0).abs() < (cursor_y - y1).abs();
-    match (top, left) {
-        (true, true) => GrabCorner::TopLeft,
-        (true, false) => GrabCorner::TopRight,
-        (false, true) => GrabCorner::BottomLeft,
-        (false, false) => GrabCorner::BottomRight,
     }
 }

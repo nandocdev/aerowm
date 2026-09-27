@@ -8,7 +8,8 @@
 //! arithmetic and XWayland lifecycle to find its three lines.
 //!
 //! - [`focus`]: keyboard focus, activation and workspace navigation
-//! - [`grab`]: interactive pointer move/resize grabs
+//! - [`grab`]: interactive pointer move/resize grabs (math in
+//!   [`aerowm_core::grab`])
 //! - [`layout`]: tiling, space mapping and floating geometry
 //! - [`window`]: per-window bookkeeping (floating, scratchpad, cleanup)
 //! - [`surface`]: backend-agnostic window lookup

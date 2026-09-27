@@ -56,6 +56,8 @@ pub enum Query {
     Focused,
     /// `(id, x, y, w, h)` per mapped window in the space.
     Geometries,
+    /// `(id, x, y, w, h)` per pinned floating geometry.
+    FloatGeometries,
     OutputCount,
     /// Usable tiling area of output `idx` (x, y, w, h).
     UsableArea(usize),
@@ -85,6 +87,23 @@ pub enum Act {
     SwitchWorkspace(usize),
     CleanupDead,
     ApplyLayout,
+    /// Mark a window floating and pin `rect` as its user geometry,
+    /// bypassing the (headless, bufferless) 0×0 committed size.
+    PinFloatGeometry {
+        id: usize,
+        x: i32,
+        y: i32,
+        w: u32,
+        h: u32,
+    },
+    /// Interactive resize of the focused window: grab the corner nearest
+    /// to `(cx, cy)`, then move the pointer to `(tx, ty)`.
+    ResizeGrab {
+        cx: f64,
+        cy: f64,
+        tx: f64,
+        ty: f64,
+    },
     /// Attach a headless output `(name, w, h)` and make it the active one.
     AddOutput {
         name: String,
@@ -252,6 +271,19 @@ fn answer(state: &AerowmState, outputs: &[smithay::output::Output], q: Query) ->
                 })
                 .collect(),
         ),
+        Query::FloatGeometries => Answer::Geoms(
+            state
+                .float_geo
+                .iter()
+                .map(|(id, rect)| Geom {
+                    id: id.as_usize(),
+                    x: rect.origin.x,
+                    y: rect.origin.y,
+                    w: rect.size.width,
+                    h: rect.size.height,
+                })
+                .collect(),
+        ),
         Query::OutputCount => Answer::Count(state.space.outputs().count()),
         Query::UsableArea(i) => {
             let area = outputs
@@ -306,6 +338,30 @@ fn apply(
         }
         Act::ApplyLayout => {
             state.apply_layout();
+            ActResult::Ok
+        }
+        Act::PinFloatGeometry { id, x, y, w, h } => {
+            let Some(id) = state
+                .workspaces
+                .iter()
+                .flat_map(|ws| ws.get_windows().iter().copied())
+                .find(|candidate| candidate.as_usize() == id)
+            else {
+                return ActResult::ConfigErr(format!("unknown window id {id}"));
+            };
+            state.active_workspace_mut().set_floating(id, true);
+            state
+                .float_geo
+                .insert(id, aerowm_core::geometry::Rect::new(x, y, w, h));
+            ActResult::Ok
+        }
+        Act::ResizeGrab { cx, cy, tx, ty } => {
+            let Some(id) = state.active_workspace().get_focused() else {
+                return ActResult::Ok;
+            };
+            // BTN_LEFT (0x110) is what input.rs passes for a real drag.
+            state.begin_resize_grab(id, 0x110, (cx, cy).into());
+            state.update_grab_to(tx, ty);
             ActResult::Ok
         }
         Act::AddOutput { name, w, h } => {
