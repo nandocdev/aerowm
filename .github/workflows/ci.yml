@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The compositor compiles two different sets of code paths
+        # (`cfg(feature = "xwayland")`), so both must stay lint-clean.
+        include:
+          - features: --no-default-features
+          - features: --features xwayland
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libwayland-dev libxkbcommon-dev libinput-dev libudev-dev \
+            libgbm-dev libegl1-mesa-dev libdrm-dev libseat-dev libpixman-1-dev
+      - name: Lint
+        run: cargo clippy --workspace --all-targets --locked ${{ matrix.features }} -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - features: --no-default-features
+          - features: --features xwayland
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libwayland-dev libxkbcommon-dev libinput-dev libudev-dev \
+            libgbm-dev libegl1-mesa-dev libdrm-dev libseat-dev libpixman-1-dev
+      - name: Test
+        run: cargo test --workspace --locked ${{ matrix.features }}
