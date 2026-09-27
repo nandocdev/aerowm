@@ -116,16 +116,18 @@ aerowm-ctl restart               # Hot-restart compositor in place
 ## 🏗️ Architecture
 
 AeroWM strictly follows a pragmatic **Modular Monolith** architecture:
-- **`aerowm-core`**: A pure, protocol-agnostic Rust library that computes geometry, tracking tree state and layouts.
+- **`aerowm-core`**: A pure, protocol-agnostic Rust library that computes geometry, tracking tree state, layouts and interactive-grab math. No Smithay, no I/O — everything here is unit-tested without a compositor.
 - **`aerowm-lua`**: The Luau sandbox and API bridge.
 - **`aerowm-ipc`**: Shared IPC payload schemas.
-- **`aerowm`**: The actual Smithay compositor bridging `udev`, `winit`, `layer-shell`, and the `core`.
+- **`aerowm`**: The actual Smithay compositor bridging `udev`, `winit`, `layer-shell`, and the `core`. Its `state/` module keeps one `AerowmState` (Smithay's `delegate_*!` macros require a single handler type) split by responsibility into `focus`, `grab`, `layout`, `window`, `surface`, `rules`, `session`, `ipc` and `xwayland` submodules.
 - **`aerowm-ctl` / `aerowm-bar`**: Independent binaries interfacing via Unix Sockets and Wayland protocols.
 
 ## 🤝 Contributing
 
 Contributions are welcome! If you plan to introduce new architecture or complexity, please read our principle:
 > _The simplest solution that works today, can be maintained tomorrow, and evolved later, always wins._
+
+CI runs `cargo fmt --check`, `cargo clippy -- -D warnings` and the test suite (with and without the `xwayland` feature) on every push and pull request, so please make those three pass before opening a PR.
 
 ## 📝 License
 
