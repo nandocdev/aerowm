@@ -2,5 +2,7 @@
 Name=AeroWM
 Comment=High-performance Wayland dynamic tiling window manager
 Exec=aerowm
+TryExec=aerowm
 Type=Application
+Icon=aerowm
 DesktopNames=AeroWM
