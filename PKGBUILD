@@ -1,6 +1,6 @@
 # Maintainer: Fernando Castillo <fdocst@gmail.com>
 pkgname=aerowm-git
-pkgver=0.1.0.r31.6ced9bb
+pkgver=0.1.0.r58.8061984
 pkgrel=1
 pkgdesc="High-performance Wayland dynamic tiling window manager in Rust + Luau"
 arch=('x86_64' 'aarch64')
@@ -37,6 +37,12 @@ package() {
   install -Dm755 "target/release/aerowm-bar" -t "$pkgdir/usr/bin/"
   
   install -Dm644 "assets/aerowm.desktop" -t "$pkgdir/usr/share/wayland-sessions/"
-  
+
+  install -Dm644 "assets/icons/hicolor/scalable/apps/aerowm.svg" \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/aerowm.svg"
+
+  install -Dm644 "assets/icons/hicolor/48x48/apps/aerowm.png" \
+    "$pkgdir/usr/share/icons/hicolor/48x48/apps/aerowm.png"
+
   install -Dm644 "examples/config.luau" -t "$pkgdir/usr/share/doc/aerowm/examples/"
 }
