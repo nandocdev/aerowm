@@ -655,41 +655,51 @@ pub fn render_udev_surface(state: &mut AerowmState, node: DrmNode, crtc: crtc::H
         let output = surface.output.clone();
         let renderer = &mut surface.renderer;
 
-        let mut lock_elements = Vec::new();
-        if state.is_locked
-            && let Some(lock_surface) = state.lock_surfaces.first()
-        {
-            use smithay::backend::renderer::element::Kind;
-            use smithay::backend::renderer::element::surface::{
-                WaylandSurfaceRenderElement, render_elements_from_surface_tree,
-            };
-            let mut tree =
-                render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
-                    renderer,
-                    lock_surface.wl_surface(),
-                    (0, 0),
-                    1.0,
-                    1.0,
-                    Kind::Unspecified,
-                );
-            lock_elements.append(&mut tree);
-        }
-
-        let elements = if !state.is_locked {
-            match state
-                .space
-                .render_elements_for_output(renderer, &output, 1.0)
-            {
-                Ok(e) => e,
+        let scale = smithay::utils::Scale::from(output.current_scale().fractional_scale());
+        let mut elements: Vec<crate::cursor::CustomRenderElement> = if state.is_locked {
+            let mut lock_elements = Vec::new();
+            if let Some(lock_surface) = state.lock_surfaces.first() {
+                use smithay::backend::renderer::element::Kind;
+                use smithay::backend::renderer::element::surface::{
+                    WaylandSurfaceRenderElement, render_elements_from_surface_tree,
+                };
+                let mut tree =
+                    render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
+                        renderer,
+                        lock_surface.wl_surface(),
+                        (0, 0),
+                        scale,
+                        1.0,
+                        Kind::Unspecified,
+                    );
+                lock_elements.append(&mut tree);
+            }
+            lock_elements
+                .into_iter()
+                .map(crate::cursor::CustomRenderElement::Surface)
+                .collect()
+        } else {
+            use smithay::desktop::space::space_render_elements;
+            match space_render_elements(renderer, [&state.space], &output, 1.0) {
+                Ok(e) => e
+                    .into_iter()
+                    .map(crate::cursor::CustomRenderElement::Space)
+                    .collect(),
                 Err(e) => {
                     warn!("render elements failed: {e:?}");
-                    surface.rendering = false;
-                    return;
+                    Vec::new()
                 }
             }
-        } else {
-            Vec::new()
         };
+
+        // Append cursor on top of workspace and layer-shell elements
+        elements.extend(crate::cursor::cursor_render_elements(
+            &state.cursor_status,
+            state.pointer_location,
+            &state.default_cursor,
+            renderer,
+            scale,
+        ));
 
         let (dmabuf, age) = match surface.gbm_surface.next_buffer() {
             Ok(v) => v,

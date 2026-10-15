@@ -35,10 +35,16 @@ impl SessionLockHandler for AerowmState {
         // Typically we drop all lock surfaces here or let the client destroy them
     }
 
-    fn new_surface(&mut self, surface: LockSurface, _output: WlOutput) {
+    fn new_surface(&mut self, surface: LockSurface, output: WlOutput) {
+        let size = smithay::output::Output::from_resource(&output)
+            .and_then(|o| o.current_mode())
+            .map(|m| (m.size.w.max(0) as u32, m.size.h.max(0) as u32).into())
+            .or_else(|| self.output_size.map(|s| (s.w.max(0) as u32, s.h.max(0) as u32).into()))
+            .unwrap_or_else(|| (1920u32, 1080u32).into());
+
         // Send initial configure
         surface.with_pending_state(|state| {
-            state.size = Some((1920, 1080).into()); // Hardcoded bounds for now
+            state.size = Some(size);
         });
         surface.send_configure();
 

@@ -22,8 +22,8 @@ impl SeatHandler for AerowmState {
         );
     }
 
-    fn cursor_image(&mut self, _seat: &smithay::input::Seat<Self>, _image: CursorImageStatus) {
-        // Nested winit backend: the host cursor is used, nothing to upload.
+    fn cursor_image(&mut self, _seat: &smithay::input::Seat<Self>, image: CursorImageStatus) {
+        self.cursor_status = image;
     }
 }
 

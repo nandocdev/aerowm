@@ -161,48 +161,56 @@ fn render_frame(state: &mut AerowmState) {
         }
     };
 
-    let mut lock_elements = Vec::new();
-    if state.is_locked
-        && let Some(lock_surface) = state.lock_surfaces.first()
-    {
-        use smithay::backend::renderer::element::Kind;
-        use smithay::backend::renderer::element::surface::{
-            WaylandSurfaceRenderElement, render_elements_from_surface_tree,
-        };
-        let mut tree =
-            render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
-                renderer,
-                lock_surface.wl_surface(),
-                (0, 0),
-                1.0,
-                1.0,
-                Kind::Unspecified,
-            );
-        lock_elements.append(&mut tree);
-    }
-
-    let elements = if !state.is_locked {
-        match state
-            .space
-            .render_elements_for_output(renderer, output, 1.0)
-        {
-            Ok(e) => e,
+    let scale = smithay::utils::Scale::from(output.current_scale().fractional_scale());
+    let mut elements: Vec<crate::cursor::CustomRenderElement> = if state.is_locked {
+        let mut lock_elements = Vec::new();
+        if let Some(lock_surface) = state.lock_surfaces.first() {
+            use smithay::backend::renderer::element::Kind;
+            use smithay::backend::renderer::element::surface::{
+                WaylandSurfaceRenderElement, render_elements_from_surface_tree,
+            };
+            let mut tree =
+                render_elements_from_surface_tree::<_, WaylandSurfaceRenderElement<GlesRenderer>>(
+                    renderer,
+                    lock_surface.wl_surface(),
+                    (0, 0),
+                    scale,
+                    1.0,
+                    Kind::Unspecified,
+                );
+            lock_elements.append(&mut tree);
+        }
+        lock_elements
+            .into_iter()
+            .map(crate::cursor::CustomRenderElement::Surface)
+            .collect()
+    } else {
+        use smithay::desktop::space::space_render_elements;
+        match space_render_elements(renderer, [&state.space], output, 1.0) {
+            Ok(e) => e
+                .into_iter()
+                .map(crate::cursor::CustomRenderElement::Space)
+                .collect(),
             Err(e) => {
-                warn!("Failed to get render elements: {}", e);
-                return;
+                warn!("Failed to get space render elements: {:?}", e);
+                Vec::new()
             }
         }
-    } else {
-        Vec::new() // We can't use SpaceRenderElements when locked unless we define a macro.
     };
 
+    // Append cursor on top of workspace and layer-shell elements
+    elements.extend(crate::cursor::cursor_render_elements(
+        &state.cursor_status,
+        state.pointer_location,
+        &state.default_cursor,
+        renderer,
+        scale,
+    ));
+
     // Render with damage tracking
-    let clear_color = [0.0, 0.0, 0.0, 1.0];
-    let render_result = if state.is_locked {
-        damage_tracker.render_output(renderer, &mut framebuffer, age, &lock_elements, clear_color)
-    } else {
-        damage_tracker.render_output(renderer, &mut framebuffer, age, &elements, clear_color)
-    };
+    let clear_color = [0.08, 0.08, 0.1, 1.0];
+    let render_result =
+        damage_tracker.render_output(renderer, &mut framebuffer, age, &elements, clear_color);
 
     // Screenshots
     if state.take_screenshot {

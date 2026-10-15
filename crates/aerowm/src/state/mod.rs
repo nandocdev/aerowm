@@ -104,6 +104,8 @@ pub struct AerowmState {
     #[cfg(feature = "xwayland")]
     pub xwayland_shell: XWaylandShellState,
     pub pointer_location: Point<f64, Logical>,
+    pub default_cursor: smithay::backend::renderer::element::memory::MemoryRenderBuffer,
+    pub cursor_status: smithay::input::pointer::CursorImageStatus,
 
     pub workspaces: Vec<Workspace>,
     pub scratchpad: Vec<WindowId>,
@@ -154,9 +156,17 @@ impl AerowmState {
             .expect("Failed to add keyboard to seat");
         seat.add_pointer();
 
-        let workspaces = (1..=NUM_WORKSPACES)
-            .map(|i| Workspace::new(i.to_string()))
-            .collect();
+        let configured_ws = engine.get_workspaces();
+        let workspaces = if configured_ws.is_empty() {
+            (1..=NUM_WORKSPACES)
+                .map(|i| Workspace::new(i.to_string()))
+                .collect()
+        } else {
+            configured_ws.into_iter().map(Workspace::new).collect()
+        };
+
+        let default_cursor = crate::cursor::create_default_cursor();
+        let cursor_status = smithay::input::pointer::CursorImageStatus::default_named();
 
         Self {
             engine,
@@ -183,6 +193,8 @@ impl AerowmState {
             #[cfg(feature = "xwayland")]
             xwayland_shell: XWaylandShellState::new::<Self>(display_handle),
             pointer_location: Point::from((0.0, 0.0)),
+            default_cursor,
+            cursor_status,
             workspaces,
             scratchpad: Vec::new(),
             active_ws: 0,

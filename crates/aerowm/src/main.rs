@@ -16,10 +16,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Initializing Luau Engine...");
     let engine = ScriptEngine::new().map_err(|e| format!("Failed to init ScriptEngine: {}", e))?;
 
-    if let Err(err) = engine.load_config_string("aerowm.log('Luau loaded successfully!')") {
+    if let Err(err) = engine.load_default_config() {
         warn!("Failed to load config: {}", err);
     }
-    let _ = engine.emit_hook("startup");
 
     let mut state = AerowmState::new(&display_handle, engine);
 
@@ -96,6 +95,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // SAFETY: single-threaded startup path, no concurrent env use.
         unsafe {
             std::env::set_var("WAYLAND_DISPLAY", &own);
+            std::env::set_var("XDG_CURRENT_DESKTOP", "aerowm");
+            std::env::set_var("XDG_SESSION_TYPE", "wayland");
         }
     }
 
@@ -105,6 +106,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "xwayland")]
     if let Err(e) = state.init_xwayland(&display_handle, event_loop.handle()) {
         warn!("XWayland disabled: {e}");
+    }
+
+    // Now that the Wayland display socket is published and backend is ready,
+    // emit the startup lifecycle hook (e.g. spawns wallpaper, aerowm-bar).
+    if let Err(err) = state.engine.emit_hook("startup") {
+        warn!("Startup hook error: {err}");
     }
 
     info!("AeroWM initialization complete. Entering event loop.");

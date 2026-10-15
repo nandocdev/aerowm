@@ -5,9 +5,11 @@
 //! compositor with in-process Wayland clients.
 
 pub mod backend;
+pub mod cursor;
 pub mod handlers;
 pub mod input;
 pub mod ipc;
 pub mod session;
 pub mod state;
 pub mod wayland_socket;
+
